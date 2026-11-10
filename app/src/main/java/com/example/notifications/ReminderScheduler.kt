@@ -27,7 +27,7 @@ object ReminderScheduler {
                 "Habit & Wellness Reminders",
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
-                description = "Daily reminders for your Life OS habits and stress check-ins"
+                description = "Daily reminders for your Habtrac habits and stress check-ins"
             }
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)

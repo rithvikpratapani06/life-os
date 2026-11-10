@@ -50,6 +50,7 @@ fun PlannerScreen(
     onSelectDate: (String) -> Unit,
     onQuickToggleBoolean: (DayHabitSummary) -> Unit,
     onQuickNoBoolean: (DayHabitSummary) -> Unit,
+    onLogTwiceDailySlot: (DayHabitSummary, String, Boolean, Boolean) -> Unit,
     onOpenQuickLog: (DayHabitSummary) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -223,6 +224,9 @@ fun PlannerScreen(
                         }
                     },
                     onQuickNo = { onQuickNoBoolean(summary) },
+                    onLogSlot = { slot, isDone, isSkip ->
+                        onLogTwiceDailySlot(summary, slot, isDone, isSkip)
+                    },
                     onOpenDetails = { onOpenQuickLog(summary) }
                 )
             }

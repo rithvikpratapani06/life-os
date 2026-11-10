@@ -7,60 +7,10 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.data.model.AccentPalette
 import com.example.data.model.ThemeMode
-
-private val DarkColorScheme = darkColorScheme(
-    primary = EmeraldPrimaryDark,
-    onPrimary = EmeraldOnPrimaryDark,
-    primaryContainer = EmeraldContainerDark,
-    onPrimaryContainer = EmeraldContainerLight,
-    secondary = IndigoSecondaryDark,
-    onSecondary = DarkOnSurface,
-    secondaryContainer = IndigoContainerDark,
-    onSecondaryContainer = IndigoContainerLight,
-    tertiary = AmberTertiaryDark,
-    onTertiary = DarkBackground,
-    tertiaryContainer = AmberContainerDark,
-    onTertiaryContainer = AmberContainerLight,
-    error = CoralErrorDark,
-    onError = DarkBackground,
-    errorContainer = CoralContainerDark,
-    onErrorContainer = CoralContainerLight,
-    background = DarkBackground,
-    onBackground = DarkOnSurface,
-    surface = DarkSurface,
-    onSurface = DarkOnSurface,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = DarkOnSurfaceVariant,
-    outline = DarkOutline
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = EmeraldPrimary,
-    onPrimary = EmeraldOnPrimary,
-    primaryContainer = EmeraldContainerLight,
-    onPrimaryContainer = EmeraldContainerDark,
-    secondary = IndigoSecondary,
-    onSecondary = EmeraldOnPrimary,
-    secondaryContainer = IndigoContainerLight,
-    onSecondaryContainer = IndigoContainerDark,
-    tertiary = AmberTertiary,
-    onTertiary = EmeraldOnPrimary,
-    tertiaryContainer = AmberContainerLight,
-    onTertiaryContainer = AmberContainerDark,
-    error = CoralError,
-    onError = EmeraldOnPrimary,
-    errorContainer = CoralContainerLight,
-    onErrorContainer = CoralContainerDark,
-    background = LightBackground,
-    onBackground = LightOnSurface,
-    surface = LightSurface,
-    onSurface = LightOnSurface,
-    surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = LightOnSurfaceVariant,
-    outline = LightOutline
-)
 
 val LifeOsShapes = Shapes(
     small = RoundedCornerShape(10.dp),
@@ -71,6 +21,7 @@ val LifeOsShapes = Shapes(
 @Composable
 fun LifeOsTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    accentPalette: AccentPalette = AccentPalette.EMERALD,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -79,7 +30,59 @@ fun LifeOsTheme(
         ThemeMode.DARK -> true
     }
 
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = if (darkTheme) {
+        darkColorScheme(
+            primary = Color(accentPalette.darkPrimary),
+            onPrimary = DarkBackground,
+            primaryContainer = Color(accentPalette.darkContainer),
+            onPrimaryContainer = Color(accentPalette.lightContainer),
+            secondary = IndigoSecondaryDark,
+            onSecondary = DarkOnSurface,
+            secondaryContainer = IndigoContainerDark,
+            onSecondaryContainer = IndigoContainerLight,
+            tertiary = AmberTertiaryDark,
+            onTertiary = DarkBackground,
+            tertiaryContainer = AmberContainerDark,
+            onTertiaryContainer = AmberContainerLight,
+            error = CoralErrorDark,
+            onError = DarkBackground,
+            errorContainer = CoralContainerDark,
+            onErrorContainer = CoralContainerLight,
+            background = DarkBackground,
+            onBackground = DarkOnSurface,
+            surface = DarkSurface,
+            onSurface = DarkOnSurface,
+            surfaceVariant = DarkSurfaceVariant,
+            onSurfaceVariant = DarkOnSurfaceVariant,
+            outline = DarkOutline
+        )
+    } else {
+        lightColorScheme(
+            primary = Color(accentPalette.lightPrimary),
+            onPrimary = Color.White,
+            primaryContainer = Color(accentPalette.lightContainer),
+            onPrimaryContainer = Color(accentPalette.darkContainer),
+            secondary = IndigoSecondary,
+            onSecondary = Color.White,
+            secondaryContainer = IndigoContainerLight,
+            onSecondaryContainer = IndigoContainerDark,
+            tertiary = AmberTertiary,
+            onTertiary = Color.White,
+            tertiaryContainer = AmberContainerLight,
+            onTertiaryContainer = AmberContainerDark,
+            error = CoralError,
+            onError = Color.White,
+            errorContainer = CoralContainerLight,
+            onErrorContainer = CoralContainerDark,
+            background = LightBackground,
+            onBackground = LightOnSurface,
+            surface = LightSurface,
+            onSurface = LightOnSurface,
+            surfaceVariant = LightSurfaceVariant,
+            onSurfaceVariant = LightOnSurfaceVariant,
+            outline = LightOutline
+        )
+    }
 
     MaterialTheme(
         colorScheme = colorScheme,

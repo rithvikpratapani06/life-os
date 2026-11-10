@@ -12,11 +12,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material3.Button
@@ -51,7 +55,7 @@ fun AppGuideSheet(onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Welcome to Life OS",
+                text = "Welcome to Habtrac",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -63,33 +67,48 @@ fun AppGuideSheet(onDismiss: () -> Unit) {
 
             GuideSectionCard(
                 icon = Icons.Default.Home,
-                title = "1. Home (Today's Focus)",
-                description = "Shows your daily completion ring, active streaks, upcoming reminders, and all habits scheduled for today. Tap the check/add icon for instant logging, or tap a card to enter custom values, notes, or intentionally skip."
+                title = "1. Home & Quick Logging",
+                description = "Shows your daily completion ring, active streaks, upcoming reminders, Daily Stress Check-In, and today's habits. Tap Yes/No for check-offs, AM/PM chips for Twice-a-Day habits, or tap any card for custom values, notes, or skipping."
             )
             GuideSectionCard(
                 icon = Icons.Default.Checklist,
-                title = "2. Habits & Categories",
-                description = "Create and organize habits across 5 tracking types (Check-off, Numeric, Duration, Quantity, Rating 1–5) and 5 schedules (Every Day, Twice a Day for morning/evening routines, Specific Days, X Days/Week, or Every N Days). You can pause, archive, or edit habits anytime without losing past history."
+                title = "2. Habits, Schedules & Categories",
+                description = "Track 5 types (Check-off, Numeric, Duration, Quantity, Rating 1–5) across 6 schedules: Every Day, Twice a Day (independent Morning AM & Night PM tracking), Specific Days, X Days/Week, Every N Days, and Few Days / Month (for sports or occasional activities—unlogged days never count as missed)."
+            )
+            GuideSectionCard(
+                icon = Icons.Default.Psychology,
+                title = "3. Daily Stress Tracking & Alerts",
+                description = "Log your daily stress level (Low, Moderate, High, Very High) right from Home. Enable the Daily Stress Check-In reminder in Settings and view weekly/monthly stress trends in Insights."
+            )
+            GuideSectionCard(
+                icon = Icons.Default.AccountBalanceWallet,
+                title = "4. Finance Manager & Expense Tracker",
+                description = "Dedicated Finance tab to record daily expenses with what you spent on and payment method (Cash, UPI, UPI Credit Card, UPI Debit Card). View today's total, monthly spend, daily average, 7-day chart, and category/payment breakdowns."
             )
             GuideSectionCard(
                 icon = Icons.Default.NotificationsActive,
-                title = "3. Custom & Dual Reminders",
-                description = "Enable reminders per habit and pick any exact custom time (24h clock). For twice-a-day routines, toggle 'Remind twice a day' to schedule two independent daily notifications."
+                title = "5. Custom & Dual Reminders",
+                description = "Set any custom reminder time per habit. For morning/night routines, enable 'Remind twice a day' to receive two independent daily notifications."
             )
             GuideSectionCard(
                 icon = Icons.Default.CalendarMonth,
-                title = "4. Planner (Calendar Heatmap)",
-                description = "Browse your monthly consistency heatmap. Tap any date to inspect that day's habits, log missed entries, or mark a habit as Intentionally Skipped with a reason so it doesn't count as missed."
+                title = "6. Planner (Monthly Calendar)",
+                description = "Browse your monthly consistency calendar. Tap any date to inspect that day's habits, log missed entries, or mark a habit as Intentionally Skipped."
             )
             GuideSectionCard(
                 icon = Icons.Default.BarChart,
-                title = "5. Insights (Weekly Analytics)",
-                description = "Track your 7-day consistency bar chart, completion rate, state breakdown (Completed, Partial, Skipped, Missed), category-wise performance, and active streak leaderboard."
+                title = "7. Insights & 12-Week Heatmaps",
+                description = "Switch between Overall, Per Habit, and Stress scopes with Weekly (7D) and Monthly (30D) views. Every habit has a 12-week calendar heatmap with month/date labels—tap any cell to inspect that day."
             )
             GuideSectionCard(
-                icon = Icons.Default.Settings,
-                title = "6. Settings & Data Control",
-                description = "Switch between System, Light, and Dark themes, configure your Logical Day Boundary (e.g., 03:00 AM so late-night logs count for yesterday), manage notification permissions, and export all your data as JSON."
+                icon = Icons.Default.Palette,
+                title = "8. Personalization & Settings",
+                description = "Customize your greeting name, choose from 6 accent color palettes, switch Light/Dark/System themes, enable Compact Layout, and set your Logical Day Boundary (e.g., 03:00 AM so late-night logs count for yesterday)."
+            )
+            GuideSectionCard(
+                icon = Icons.Default.Security,
+                title = "9. Security & Offline Privacy",
+                description = "Habtrac runs in an offline sandbox with zero internet or storage permissions. Enable a 4-digit salted SHA-256 App PIN lock and Screen Privacy (blocks screenshots and recent-apps preview) in Settings, or export your data as JSON anytime."
             )
             GuideSectionCard(
                 icon = Icons.Default.Spa,

@@ -88,7 +88,10 @@ class MainActivity : ComponentActivity() {
             val viewModel: LifeOsViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-            LifeOsTheme(themeMode = uiState.themeMode) {
+            LifeOsTheme(
+                themeMode = uiState.themeMode,
+                accentPalette = uiState.accentPalette
+            ) {
                 LaunchedEffect(uiState.screenSecurityEnabled) {
                     if (uiState.screenSecurityEnabled) {
                         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -213,6 +216,9 @@ fun LifeOsApp(viewModel: LifeOsViewModel) {
                     SettingsScreen(
                         uiState = uiState,
                         onSetThemeMode = { viewModel.setThemeMode(it) },
+                        onSetAccentPalette = { viewModel.setAccentPalette(it) },
+                        onSetUserName = { viewModel.setUserName(it) },
+                        onSetCompactMode = { viewModel.setCompactMode(it) },
                         onSetDayCutoffHour = { viewModel.setDayCutoffHour(it) },
                         onExportJson = { callback -> viewModel.exportData(callback) },
                         onClearAllData = { viewModel.clearAllData() },
@@ -247,6 +253,16 @@ fun LifeOsApp(viewModel: LifeOsViewModel) {
                             },
                             onQuickNoBoolean = { summary ->
                                 viewModel.logHabit(summary.habit, uiState.logicalToday, 0.0, isExplicitNo = true)
+                            },
+                            onLogTwiceDailySlot = { summary, slot, isDone, isSkip ->
+                                viewModel.logHabit(
+                                    habit = summary.habit,
+                                    date = uiState.logicalToday,
+                                    value = if (isDone) 1.0 else 0.0,
+                                    isSkip = isSkip,
+                                    isExplicitNo = !isDone && !isSkip,
+                                    slot = slot
+                                )
                             },
                             onOpenQuickLog = { summary ->
                                 quickLogTarget = summary to uiState.logicalToday
@@ -296,6 +312,16 @@ fun LifeOsApp(viewModel: LifeOsViewModel) {
                             onQuickNoBoolean = { summary ->
                                 viewModel.logHabit(summary.habit, uiState.selectedPlannerDate, 0.0, isExplicitNo = true)
                             },
+                            onLogTwiceDailySlot = { summary, slot, isDone, isSkip ->
+                                viewModel.logHabit(
+                                    habit = summary.habit,
+                                    date = uiState.selectedPlannerDate,
+                                    value = if (isDone) 1.0 else 0.0,
+                                    isSkip = isSkip,
+                                    isExplicitNo = !isDone && !isSkip,
+                                    slot = slot
+                                )
+                            },
                             onOpenQuickLog = { summary ->
                                 quickLogTarget = summary to uiState.selectedPlannerDate
                             },
@@ -339,22 +365,34 @@ fun LifeOsApp(viewModel: LifeOsViewModel) {
         AppGuideSheet(onDismiss = { showAppGuide = false })
     }
 
-    quickLogTarget?.let { (summary, dateStr) ->
+    quickLogTarget?.let { (targetSummary, dateStr) ->
+        val liveSummary = (if (dateStr == uiState.logicalToday) uiState.todaySummaries else uiState.plannerSummaries)
+            .firstOrNull { it.habit.id == targetSummary.habit.id } ?: targetSummary
         QuickLogDialog(
-            summary = summary,
+            summary = liveSummary,
             dateLabel = DateHelper.formatReadable(dateStr),
             onDismiss = { quickLogTarget = null },
             onLogValue = { value, note ->
-                viewModel.logHabit(summary.habit, dateStr, value, note = note, isSkip = false)
+                viewModel.logHabit(liveSummary.habit, dateStr, value, note = note, isSkip = false)
             },
             onExplicitNo = { note ->
-                viewModel.logHabit(summary.habit, dateStr, 0.0, note = note, isExplicitNo = true)
+                viewModel.logHabit(liveSummary.habit, dateStr, 0.0, note = note, isExplicitNo = true)
             },
             onSkip = { note ->
-                viewModel.logHabit(summary.habit, dateStr, 0.0, note = note, isSkip = true)
+                viewModel.logHabit(liveSummary.habit, dateStr, 0.0, note = note, isSkip = true)
             },
             onClearDay = {
-                viewModel.clearHabitDayLogs(summary.habit.id, dateStr)
+                viewModel.clearHabitDayLogs(liveSummary.habit.id, dateStr)
+            },
+            onLogSlot = { slot, isDone, isSkip ->
+                viewModel.logHabit(
+                    habit = liveSummary.habit,
+                    date = dateStr,
+                    value = if (isDone) 1.0 else 0.0,
+                    isSkip = isSkip,
+                    isExplicitNo = !isDone && !isSkip,
+                    slot = slot
+                )
             }
         )
     }

@@ -38,8 +38,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import java.util.Calendar
 import com.example.data.model.LogStatus
 import com.example.data.model.StressLevel
 import com.example.data.model.TrackingType
@@ -57,6 +60,7 @@ fun HomeScreen(
     uiState: LifeOsUiState,
     onQuickToggleBoolean: (DayHabitSummary) -> Unit,
     onQuickNoBoolean: (DayHabitSummary) -> Unit,
+    onLogTwiceDailySlot: (DayHabitSummary, String, Boolean, Boolean) -> Unit,
     onOpenQuickLog: (DayHabitSummary) -> Unit,
     onOpenCreateHabit: () -> Unit,
     onOpenGuide: () -> Unit,
@@ -69,11 +73,23 @@ fun HomeScreen(
     val totalCount = todayItems.size
     val progress = if (totalCount == 0) 0f else completedCount.toFloat() / totalCount.toFloat()
     val bestStreak = todayItems.maxOfOrNull { it.currentStreak } ?: 0
+    val haptic = LocalHapticFeedback.current
+    val itemSpacing = if (uiState.compactMode) 10.dp else 16.dp
+
+    val greeting = androidx.compose.runtime.remember(uiState.userName) {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val base = when {
+            hour < 12 -> "Good Morning"
+            hour < 17 -> "Good Afternoon"
+            else -> "Good Evening"
+        }
+        if (uiState.userName.isNotBlank()) "$base, ${uiState.userName}" else base
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(itemSpacing)
     ) {
         // Header
         item {
@@ -82,14 +98,14 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = DateHelper.formatReadable(uiState.logicalToday),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Today's Focus",
+                        text = greeting,
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.onBackground
                     )
@@ -226,7 +242,10 @@ fun HomeScreen(
                         StressLevel.entries.forEach { level ->
                             FilterChip(
                                 selected = todayStress?.level == level,
-                                onClick = { onLogStress(level) },
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onLogStress(level)
+                                },
                                 label = { Text(level.label) }
                             )
                         }
@@ -350,6 +369,7 @@ fun HomeScreen(
                 DayHabitCard(
                     summary = summary,
                     onQuickAction = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         if (summary.habit.trackingType == TrackingType.BOOLEAN) {
                             if (summary.targetValue > 1.0 && summary.status == LogStatus.COMPLETED) {
                                 onOpenQuickLog(summary)
@@ -360,7 +380,14 @@ fun HomeScreen(
                             onOpenQuickLog(summary)
                         }
                     },
-                    onQuickNo = { onQuickNoBoolean(summary) },
+                    onQuickNo = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onQuickNoBoolean(summary)
+                    },
+                    onLogSlot = { slot, isDone, isSkip ->
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLogTwiceDailySlot(summary, slot, isDone, isSkip)
+                    },
                     onOpenDetails = { onOpenQuickLog(summary) }
                 )
             }

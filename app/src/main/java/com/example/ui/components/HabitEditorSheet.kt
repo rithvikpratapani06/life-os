@@ -167,7 +167,16 @@ fun HabitEditorSheet(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Tracking Type", style = MaterialTheme.typography.titleSmall)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("Tracking Type", style = MaterialTheme.typography.titleSmall)
+                    InfoTipButton(
+                        title = "Tracking Type",
+                        explanation = "Check-off: Simple Yes/No. Numeric: Pages or reps. Duration: Minutes spent. Quantity: Glasses or items. Rating: 1–5 score."
+                    )
+                }
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -225,7 +234,16 @@ fun HabitEditorSheet(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Schedule", style = MaterialTheme.typography.titleSmall)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("Schedule", style = MaterialTheme.typography.titleSmall)
+                    InfoTipButton(
+                        title = "Schedule Options",
+                        explanation = "Every Day: Daily goal. Twice a Day: Separate Morning (AM) & Night (PM) tracking. Specific Days: Pick weekdays. X Days/Week: Weekly goal. Every N Days: Repeating interval. Few Days / Month: For sports or occasional habits—unlogged days never count as missed."
+                    )
+                }
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -320,6 +338,13 @@ fun HabitEditorSheet(
                             }
                         }
                     }
+                    ScheduleType.OCCASIONAL -> {
+                        Text(
+                            text = "Log only on the days you do it (e.g., playing sports). Unlogged days stay neutral and won't count as missed.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     ScheduleType.DAILY -> Unit
                 }
             }
@@ -338,8 +363,17 @@ fun HabitEditorSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
-                            Text("Daily Reminders", style = MaterialTheme.typography.titleSmall)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("Daily Reminders", style = MaterialTheme.typography.titleSmall)
+                                InfoTipButton(
+                                    title = "Daily Reminders",
+                                    explanation = "Schedule a custom notification time for this habit. Enable 'Remind twice a day' for morning and night alerts."
+                                )
+                            }
                             Text(
                                 text = when {
                                     !reminderEnabled -> "Off"

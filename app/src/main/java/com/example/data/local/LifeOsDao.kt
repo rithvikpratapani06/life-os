@@ -70,6 +70,9 @@ interface LifeOsDao {
     @Query("DELETE FROM habit_logs WHERE habitId = :habitId AND logDate = :logDate")
     suspend fun deleteLogsForHabitOnDate(habitId: Long, logDate: String)
 
+    @Query("DELETE FROM habit_logs WHERE habitId = :habitId AND logDate = :logDate AND slot = :slot")
+    suspend fun deleteLogsForHabitOnDateAndSlot(habitId: Long, logDate: String, slot: String)
+
     @Query("DELETE FROM habit_logs")
     suspend fun deleteAllLogs()
 

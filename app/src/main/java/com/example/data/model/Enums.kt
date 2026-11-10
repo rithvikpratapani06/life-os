@@ -13,7 +13,8 @@ enum class ScheduleType(val label: String) {
     TWICE_DAILY("Twice a Day"),
     SPECIFIC_DAYS("Specific Days"),
     WEEKLY_TARGET("X Days / Week"),
-    INTERVAL("Every N Days")
+    INTERVAL("Every N Days"),
+    OCCASIONAL("Few Days / Month")
 }
 
 enum class HabitStatus(val label: String) {
@@ -60,4 +61,19 @@ enum class ExpenseCategory(val label: String) {
     HEALTH("Health"),
     ENTERTAINMENT("Entertainment"),
     OTHER("Other")
+}
+
+enum class AccentPalette(
+    val label: String,
+    val lightPrimary: Long,
+    val darkPrimary: Long,
+    val lightContainer: Long,
+    val darkContainer: Long
+) {
+    EMERALD("Emerald", 0xFF10B981L, 0xFF34D399L, 0xFFD1FAE5L, 0xFF064E3BL),
+    INDIGO("Indigo", 0xFF6366F1L, 0xFF818CF8L, 0xFFE0E7FFL, 0xFF312E81L),
+    CORAL("Coral", 0xFFF43F5EL, 0xFFFB7185L, 0xFFFFE4E6L, 0xFF881337L),
+    AMBER("Amber", 0xFFD97706L, 0xFFFBBF24L, 0xFFFEF3C7L, 0xFF78350FL),
+    CYAN("Cyan", 0xFF0891B2L, 0xFF22D3EEL, 0xFFCFFAFEL, 0xFF164E63L),
+    VIOLET("Violet", 0xFF7C3AEDL, 0xFFA78BFAL, 0xFFEDE9FEL, 0xFF4C1D95L)
 }

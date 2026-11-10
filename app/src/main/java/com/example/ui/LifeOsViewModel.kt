@@ -9,10 +9,12 @@ import com.example.data.local.entity.ExpenseEntity
 import com.example.data.local.entity.HabitEntity
 import com.example.data.local.entity.HabitLogEntity
 import com.example.data.local.entity.StressLogEntity
+import com.example.data.model.AccentPalette
 import com.example.data.model.ExpenseCategory
 import com.example.data.model.HabitStatus
 import com.example.data.model.LogStatus
 import com.example.data.model.PaymentMethod
+import com.example.data.model.ScheduleType
 import com.example.data.model.StressLevel
 import com.example.data.model.ThemeMode
 import com.example.data.preferences.UserPreferencesRepository
@@ -117,6 +119,9 @@ data class LifeOsUiState(
     val logicalToday: String = DateHelper.logicalToday(),
     val selectedPlannerDate: String = DateHelper.logicalToday(),
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val accentPalette: AccentPalette = AccentPalette.EMERALD,
+    val userName: String = "",
+    val compactMode: Boolean = false,
     val dayCutoffHour: Int = 3,
     val isPinEnabled: Boolean = false,
     val isUnlocked: Boolean = true,
@@ -158,6 +163,14 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
         DataBundle(cats, hbs, lgs, stress, exps)
     }
 
+    private val personalizationFlow = combine(
+        prefs.accentPalette,
+        prefs.userName,
+        prefs.compactMode
+    ) { palette, name, compact ->
+        Triple(palette, name, compact)
+    }
+
     private val prefsFlow = combine(
         prefs.themeMode,
         prefs.dayCutoffHour,
@@ -165,7 +178,8 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
         prefs.pinCredentials,
         prefs.screenSecurityEnabled,
         prefs.stressReminderConfig,
-        isUnlockedState
+        isUnlockedState,
+        personalizationFlow
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         PrefsBundle(
@@ -175,7 +189,8 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
             pinCreds = values[3] as Pair<String, String>?,
             screenSec = values[4] as Boolean,
             stressReminder = values[5] as Triple<Boolean, Int, Int>,
-            unlocked = values[6] as Boolean
+            unlocked = values[6] as Boolean,
+            personalization = values[7] as Triple<AccentPalette, String, Boolean>
         )
     }
 
@@ -195,8 +210,8 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
             h.id to LifeOsRepository.computeCurrentStreak(h, logsByHabit[h.id].orEmpty(), today)
         }
 
-        val todaySummaries = buildSummariesForDate(today, today, habits, catMap, logsByHabit, streakMap)
-        val plannerSummaries = buildSummariesForDate(pref.plannerDate, today, habits, catMap, logsByHabit, streakMap)
+        val todaySummaries = buildSummariesForDate(today, today, habits, catMap, logsByHabit, streakMap, includeOccasional = true)
+        val plannerSummaries = buildSummariesForDate(pref.plannerDate, today, habits, catMap, logsByHabit, streakMap, includeOccasional = true)
 
         val heatmapDates = DateHelper.lastNDates(today, 45)
         val monthMap = heatmapDates.associateWith { date ->
@@ -219,6 +234,9 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
             logicalToday = today,
             selectedPlannerDate = pref.plannerDate,
             themeMode = pref.themeMode,
+            accentPalette = pref.personalization.first,
+            userName = pref.personalization.second,
+            compactMode = pref.personalization.third,
             dayCutoffHour = pref.cutoffHour,
             isPinEnabled = pinEnabled,
             isUnlocked = !pinEnabled || pref.unlocked,
@@ -260,7 +278,8 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
         val pinCreds: Pair<String, String>?,
         val screenSec: Boolean,
         val stressReminder: Triple<Boolean, Int, Int>,
-        val unlocked: Boolean
+        val unlocked: Boolean,
+        val personalization: Triple<AccentPalette, String, Boolean>
     )
 
     private fun buildSummariesForDate(
@@ -269,10 +288,20 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
         habits: List<HabitEntity>,
         catMap: Map<Long, CategoryEntity>,
         logsByHabit: Map<Long, List<HabitLogEntity>>,
-        streakMap: Map<Long, Int>
+        streakMap: Map<Long, Int>,
+        includeOccasional: Boolean = false
     ): List<DayHabitSummary> {
         return habits
-            .filter { it.status == HabitStatus.ACTIVE && LifeOsRepository.isHabitScheduledOn(it, date) }
+            .filter { habit ->
+                if (habit.status != HabitStatus.ACTIVE) return@filter false
+                if (date < habit.startDate) return@filter false
+                if (habit.endDate != null && date > habit.endDate) return@filter false
+                if (habit.scheduleType == ScheduleType.OCCASIONAL) {
+                    includeOccasional || logsByHabit[habit.id].orEmpty().any { it.logDate == date }
+                } else {
+                    LifeOsRepository.isHabitScheduledOn(habit, date)
+                }
+            }
             .map { habit ->
                 val habitLogs = logsByHabit[habit.id].orEmpty()
                 val dayLogs = habitLogs.filter { it.logDate == date }
@@ -386,7 +415,12 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
                 var mTotalVal = 0.0
 
                 val heatmap = last84.map { date ->
-                    val scheduled = date <= today && LifeOsRepository.isHabitScheduledOn(habit, date)
+                    val dayLogs = logsByDate[date].orEmpty()
+                    val scheduled = date <= today && if (habit.scheduleType == ScheduleType.OCCASIONAL) {
+                        date >= habit.startDate && (habit.endDate == null || date <= habit.endDate) && dayLogs.isNotEmpty()
+                    } else {
+                        LifeOsRepository.isHabitScheduledOn(habit, date)
+                    }
                     if (!scheduled) {
                         HeatmapCell(date = date, status = null, isScheduled = false)
                     } else {
@@ -458,10 +492,11 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
         value: Double,
         note: String = "",
         isSkip: Boolean = false,
-        isExplicitNo: Boolean = false
+        isExplicitNo: Boolean = false,
+        slot: String = ""
     ) {
         viewModelScope.launch {
-            repository.logHabitProgress(habit, date, value, note, isSkip, isExplicitNo)
+            repository.logHabitProgress(habit, date, value, note, isSkip, isExplicitNo, slot)
         }
     }
 
@@ -523,6 +558,18 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { prefs.setThemeMode(mode) }
+    }
+
+    fun setAccentPalette(palette: AccentPalette) {
+        viewModelScope.launch { prefs.setAccentPalette(palette) }
+    }
+
+    fun setUserName(name: String) {
+        viewModelScope.launch { prefs.setUserName(name) }
+    }
+
+    fun setCompactMode(enabled: Boolean) {
+        viewModelScope.launch { prefs.setCompactMode(enabled) }
     }
 
     fun setDayCutoffHour(hour: Int) {

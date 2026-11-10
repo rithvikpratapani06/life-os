@@ -20,7 +20,9 @@ data class DayHabitSummary(
     val totalValue: Double,
     val targetValue: Double,
     val logs: List<HabitLogEntity>,
-    val currentStreak: Int
+    val currentStreak: Int,
+    val morningStatus: LogStatus? = null,
+    val eveningStatus: LogStatus? = null
 )
 
 class LifeOsRepository(private val dao: LifeOsDao) {
@@ -74,8 +76,31 @@ class LifeOsRepository(private val dao: LifeOsDao) {
         value: Double,
         note: String = "",
         isSkip: Boolean = false,
-        isExplicitNo: Boolean = false
+        isExplicitNo: Boolean = false,
+        slot: String = ""
     ) {
+        if (habit.scheduleType == ScheduleType.TWICE_DAILY && slot.isNotEmpty()) {
+            dao.deleteLogsForHabitOnDateAndSlot(habit.id, logDate, slot)
+            val slotStatus = when {
+                isSkip -> LogStatus.INTENTIONALLY_SKIPPED
+                isExplicitNo || value <= 0.0 -> LogStatus.MISSED
+                else -> LogStatus.COMPLETED
+            }
+            dao.insertLog(
+                HabitLogEntity(
+                    habitId = habit.id,
+                    logDate = logDate,
+                    value = if (slotStatus == LogStatus.COMPLETED) 1.0 else 0.0,
+                    targetValueSnapshot = habit.targetValue,
+                    trackingTypeSnapshot = habit.trackingType,
+                    status = slotStatus,
+                    note = note.trim(),
+                    slot = slot
+                )
+            )
+            return
+        }
+
         val existing = dao.getLogsForHabitOnDate(habit.id, logDate)
         if (isSkip) {
             dao.deleteLogsForHabitOnDate(habit.id, logDate)
@@ -288,6 +313,7 @@ class LifeOsRepository(private val dao: LifeOsDao) {
                     val interval = habit.intervalDays.coerceAtLeast(1)
                     diff >= 0 && diff % interval == 0
                 }
+                ScheduleType.OCCASIONAL -> false
             }
         }
 
@@ -301,6 +327,40 @@ class LifeOsRepository(private val dao: LifeOsDao) {
             precomputedStreak: Int? = null
         ): DayHabitSummary {
             val activeLogs = logsForDay.sortedBy { it.loggedAt }
+            if (habit.scheduleType == ScheduleType.TWICE_DAILY) {
+                val amLog = activeLogs.lastOrNull { it.slot == "MORNING" }
+                val pmLog = activeLogs.lastOrNull { it.slot == "EVENING" }
+                val amStatus = amLog?.status ?: if (targetDate < logicalToday && habit.status == HabitStatus.ACTIVE) LogStatus.MISSED else LogStatus.SCHEDULED
+                val pmStatus = pmLog?.status ?: if (targetDate < logicalToday && habit.status == HabitStatus.ACTIVE) LogStatus.MISSED else LogStatus.SCHEDULED
+
+                val completedSlots = listOf(amStatus, pmStatus).count { it == LogStatus.COMPLETED }
+                val skippedSlots = listOf(amStatus, pmStatus).count { it == LogStatus.INTENTIONALLY_SKIPPED }
+                val missedSlots = listOf(amStatus, pmStatus).count { it == LogStatus.MISSED }
+
+                val dayStatus = when {
+                    completedSlots == 2 -> LogStatus.COMPLETED
+                    completedSlots == 1 && skippedSlots == 1 -> LogStatus.COMPLETED
+                    skippedSlots == 2 -> LogStatus.INTENTIONALLY_SKIPPED
+                    completedSlots == 1 -> LogStatus.PARTIALLY_COMPLETED
+                    missedSlots > 0 && targetDate < logicalToday -> LogStatus.MISSED
+                    amLog?.status == LogStatus.MISSED && pmLog?.status == LogStatus.MISSED -> LogStatus.MISSED
+                    else -> LogStatus.SCHEDULED
+                }
+
+                val streak = precomputedStreak ?: computeCurrentStreak(habit, allLogsForHabit, logicalToday)
+                return DayHabitSummary(
+                    habit = habit,
+                    category = category,
+                    status = dayStatus,
+                    totalValue = completedSlots.toDouble(),
+                    targetValue = 2.0,
+                    logs = activeLogs,
+                    currentStreak = streak,
+                    morningStatus = amStatus,
+                    eveningStatus = pmStatus
+                )
+            }
+
             val hasSkip = activeLogs.any { it.status == LogStatus.INTENTIONALLY_SKIPPED }
             val hasExplicitMissed = activeLogs.any { it.status == LogStatus.MISSED }
             val nonSkipLogs = activeLogs.filter {
@@ -319,7 +379,7 @@ class LifeOsRepository(private val dao: LifeOsDao) {
                 hasExplicitMissed && nonSkipLogs.isEmpty() -> LogStatus.MISSED
                 nonSkipLogs.isNotEmpty() && totalValue >= target -> LogStatus.COMPLETED
                 nonSkipLogs.isNotEmpty() && totalValue > 0.0 -> LogStatus.PARTIALLY_COMPLETED
-                targetDate < logicalToday && habit.status == HabitStatus.ACTIVE -> LogStatus.MISSED
+                targetDate < logicalToday && habit.status == HabitStatus.ACTIVE && habit.scheduleType != ScheduleType.OCCASIONAL -> LogStatus.MISSED
                 else -> LogStatus.SCHEDULED
             }
 

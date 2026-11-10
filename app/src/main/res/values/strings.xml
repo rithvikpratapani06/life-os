@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Life OS</string>
+    <string name="app_name">Habtrac</string>
     <string name="nav_home">Home</string>
     <string name="nav_habits">Habits</string>
     <string name="nav_planner">Planner</string>

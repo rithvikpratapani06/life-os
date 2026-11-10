@@ -2,7 +2,11 @@ package com.example.ui.screens
 
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,11 +18,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Lock
@@ -48,13 +55,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.example.data.model.AccentPalette
 import com.example.data.model.ThemeMode
 import com.example.ui.LifeOsUiState
+import com.example.ui.components.InfoTipButton
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,6 +73,9 @@ import java.util.Locale
 fun SettingsScreen(
     uiState: LifeOsUiState,
     onSetThemeMode: (ThemeMode) -> Unit,
+    onSetAccentPalette: (AccentPalette) -> Unit,
+    onSetUserName: (String) -> Unit,
+    onSetCompactMode: (Boolean) -> Unit,
     onSetDayCutoffHour: (Int) -> Unit,
     onExportJson: ((String) -> Unit) -> Unit,
     onClearAllData: () -> Unit,
@@ -79,6 +93,7 @@ fun SettingsScreen(
     var showPinDialog by remember { mutableStateOf(false) }
     var showStressTimePicker by remember { mutableStateOf(false) }
     var newPinInput by remember { mutableStateOf("") }
+    var nameDraft by remember(uiState.userName) { mutableStateOf(uiState.userName) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -111,7 +126,7 @@ fun SettingsScreen(
                 ) {
                     Text("App Intro & Guide", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "Learn how every screen, tracking type, reminder, and analytics metric in Life OS works.",
+                        text = "Learn how every screen, tracking type, reminder, and analytics metric in Habtrac works.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -125,13 +140,13 @@ fun SettingsScreen(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Open Life OS Guide")
+                        Text("Open Habtrac Guide")
                     }
                 }
             }
         }
 
-        // Appearance
+        // Appearance & Personalization Studio
         item {
             Surface(
                 shape = MaterialTheme.shapes.large,
@@ -141,9 +156,23 @@ fun SettingsScreen(
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Appearance", style = MaterialTheme.typography.titleMedium)
+                    Text("Personalization & Theme", style = MaterialTheme.typography.titleMedium)
+
+                    OutlinedTextField(
+                        value = nameDraft,
+                        onValueChange = {
+                            nameDraft = it
+                            onSetUserName(it)
+                        },
+                        label = { Text("Your Name (for greeting)") },
+                        placeholder = { Text("e.g., Rithvik") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text("Theme Mode", style = MaterialTheme.typography.labelMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ThemeMode.entries.forEach { mode ->
                             FilterChip(
@@ -153,6 +182,71 @@ fun SettingsScreen(
                                 modifier = Modifier.testTag("theme_${mode.name.lowercase()}")
                             )
                         }
+                    }
+
+                    Text("Accent Color", style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        AccentPalette.entries.forEach { palette ->
+                            val selected = uiState.accentPalette == palette
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(palette.lightPrimary))
+                                        .clickable { onSetAccentPalette(palette) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (selected) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = palette.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("Compact Layout", style = MaterialTheme.typography.titleSmall)
+                                InfoTipButton(
+                                    title = "Compact Layout",
+                                    explanation = "Reduces spacing between habit cards so more items fit on your screen at once."
+                                )
+                            }
+                            Text(
+                                text = "Fit more habits on screen at once",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = uiState.compactMode,
+                            onCheckedChange = onSetCompactMode
+                        )
                     }
                 }
             }
@@ -170,7 +264,16 @@ fun SettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Logical Day Boundary", style = MaterialTheme.typography.titleMedium)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("Logical Day Boundary", style = MaterialTheme.typography.titleMedium)
+                        InfoTipButton(
+                            title = "Logical Day Boundary",
+                            explanation = "If you stay up past midnight, logs made before this hour (e.g., 03:00 AM) still count toward yesterday instead of tomorrow."
+                        )
+                    }
                     Text(
                         text = "Late-night logs before this hour count toward yesterday.",
                         style = MaterialTheme.typography.bodySmall,
@@ -218,7 +321,16 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Daily Stress Check-In", style = MaterialTheme.typography.titleSmall)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("Daily Stress Check-In", style = MaterialTheme.typography.titleSmall)
+                                InfoTipButton(
+                                    title = "Daily Stress Check-In",
+                                    explanation = "Sends one daily notification asking your stress level (Low, Moderate, High, Very High) to track trends in Insights."
+                                )
+                            }
                             Text(
                                 text = if (uiState.stressReminderEnabled) {
                                     String.format(Locale.US, "Notify daily at %02d:%02d", uiState.stressReminderHour, uiState.stressReminderMinute)
@@ -258,10 +370,10 @@ fun SettingsScreen(
                             onExportJson { json ->
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = "application/json"
-                                    putExtra(Intent.EXTRA_SUBJECT, "Life OS Backup")
+                                    putExtra(Intent.EXTRA_SUBJECT, "Habtrac Backup")
                                     putExtra(Intent.EXTRA_TEXT, json)
                                 }
-                                context.startActivity(Intent.createChooser(shareIntent, "Export Life OS Data"))
+                                context.startActivity(Intent.createChooser(shareIntent, "Export Habtrac Data"))
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -338,7 +450,16 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("App PIN Lock", style = MaterialTheme.typography.titleSmall)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("App PIN Lock", style = MaterialTheme.typography.titleSmall)
+                                InfoTipButton(
+                                    title = "App PIN Lock",
+                                    explanation = "Requires a 4-digit PIN to open Habtrac. Your PIN is stored locally using a salted SHA-256 hash."
+                                )
+                            }
                             Text(
                                 text = if (uiState.isPinEnabled) "4-digit salted SHA-256 PIN active" else "Off",
                                 style = MaterialTheme.typography.bodySmall,
@@ -364,7 +485,16 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Screen Privacy", style = MaterialTheme.typography.titleSmall)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("Screen Privacy", style = MaterialTheme.typography.titleSmall)
+                                InfoTipButton(
+                                    title = "Screen Privacy",
+                                    explanation = "Blocks screenshots and screen recordings inside Habtrac and hides the app preview in your recent apps switcher."
+                                )
+                            }
                             Text(
                                 text = "Block screenshots & hide recents preview",
                                 style = MaterialTheme.typography.bodySmall,
@@ -382,7 +512,7 @@ fun SettingsScreen(
 
         item {
             Text(
-                text = "Life OS • Offline-First Local MVP (SQLite / Room)",
+                text = "Habtrac • Offline-First Local MVP (SQLite / Room)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp)

@@ -28,5 +28,6 @@ data class HabitLogEntity(
     val trackingTypeSnapshot: TrackingType,
     val status: LogStatus,
     val note: String = "",
+    val slot: String = "", // "", "MORNING", or "EVENING"
     val loggedAt: Long = System.currentTimeMillis()
 )

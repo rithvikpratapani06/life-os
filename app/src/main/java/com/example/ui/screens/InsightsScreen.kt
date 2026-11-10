@@ -41,6 +41,7 @@ import com.example.data.model.TrackingType
 import com.example.ui.HabitAnalytics
 import com.example.ui.LifeOsUiState
 import com.example.ui.components.HabitHeatmapGrid
+import com.example.ui.components.InfoTipButton
 import com.example.ui.components.formatCleanNumber
 import com.example.ui.theme.MonoMetricLarge
 import com.example.ui.theme.MonoMetricMedium
@@ -78,7 +79,16 @@ fun InsightsScreen(
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Analytics & Insights", style = MaterialTheme.typography.headlineMedium)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("Analytics & Insights", style = MaterialTheme.typography.headlineMedium)
+                    InfoTipButton(
+                        title = "Analytics Scopes",
+                        explanation = "Overall: Combined completion rate and category totals. Per Habit: 12-week calendar heatmap and streak for each habit separately. Stress: Weekly and monthly stress level breakdown."
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AnalyticsScope.entries.forEach { s ->
                         FilterChip(

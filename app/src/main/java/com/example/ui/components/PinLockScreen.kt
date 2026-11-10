@@ -69,7 +69,7 @@ fun PinLockScreen(
             }
 
             Spacer(modifier = Modifier.height(20.dp))
-            Text("Life OS Locked", style = MaterialTheme.typography.headlineMedium)
+            Text("Habtrac Locked", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "Enter your 4-digit PIN to access your personal data.",

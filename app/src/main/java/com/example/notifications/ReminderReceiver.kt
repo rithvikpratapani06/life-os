@@ -46,7 +46,7 @@ class ReminderReceiver : BroadcastReceiver() {
             )
 
             val isStress = habitId == ReminderScheduler.STRESS_CHECKIN_ID
-            val title = if (isStress) "Daily Stress Check-In" else "Life OS Reminder"
+            val title = if (isStress) "Daily Stress Check-In" else "Habtrac Reminder"
             val body = if (isStress) {
                 "How was your stress level today? Tap to log Low, Moderate, High, or Very High."
             } else {

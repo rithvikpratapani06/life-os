@@ -1,6 +1,6 @@
 {
-  "name": "Life OS",
-  "description": "Personal offline-first life management, habit tracking, and analytics application.",
+  "name": "Habtrac",
+  "description": "Personal offline-first habit tracking, finance, stress, and life analytics application.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

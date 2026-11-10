@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -66,6 +68,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.model.LogStatus
+import com.example.data.model.ScheduleType
 import com.example.data.model.TrackingType
 import com.example.data.repository.DayHabitSummary
 import com.example.ui.theme.MonoMetricLarge
@@ -163,6 +166,7 @@ fun DayHabitCard(
     onQuickAction: () -> Unit,
     onOpenDetails: () -> Unit,
     onQuickNo: (() -> Unit)? = null,
+    onLogSlot: ((slot: String, isDone: Boolean, isSkip: Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val catColor = summary.category?.let { Color(it.colorHex) } ?: MaterialTheme.colorScheme.primary
@@ -248,7 +252,9 @@ fun DayHabitCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (summary.habit.trackingType == TrackingType.BOOLEAN && summary.targetValue <= 1.0) {
+                    if (summary.habit.scheduleType == ScheduleType.TWICE_DAILY) {
+                        StatusPill(summary.status)
+                    } else if (summary.habit.trackingType == TrackingType.BOOLEAN && summary.targetValue <= 1.0) {
                         StatusPill(summary.status)
                     } else {
                         val valStr = formatCleanNumber(summary.totalValue)
@@ -265,7 +271,39 @@ fun DayHabitCard(
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
-            if (summary.habit.trackingType == TrackingType.BOOLEAN && summary.targetValue <= 1.0 && onQuickNo != null) {
+            if (summary.habit.scheduleType == ScheduleType.TWICE_DAILY && onLogSlot != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TwiceDailySlotChip(
+                        label = "AM",
+                        slotStatus = summary.morningStatus,
+                        accentColor = catColor,
+                        onClick = {
+                            if (summary.morningStatus == LogStatus.COMPLETED) {
+                                onOpenDetails()
+                            } else {
+                                onLogSlot("MORNING", true, false)
+                            }
+                        },
+                        modifier = Modifier.testTag("habit_am_action_${summary.habit.id}")
+                    )
+                    TwiceDailySlotChip(
+                        label = "PM",
+                        slotStatus = summary.eveningStatus,
+                        accentColor = catColor,
+                        onClick = {
+                            if (summary.eveningStatus == LogStatus.COMPLETED) {
+                                onOpenDetails()
+                            } else {
+                                onLogSlot("EVENING", true, false)
+                            }
+                        },
+                        modifier = Modifier.testTag("habit_pm_action_${summary.habit.id}")
+                    )
+                }
+            } else if (summary.habit.trackingType == TrackingType.BOOLEAN && summary.targetValue <= 1.0 && onQuickNo != null) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -369,6 +407,66 @@ fun DayHabitCard(
 }
 
 @Composable
+private fun TwiceDailySlotChip(
+    label: String,
+    slotStatus: LogStatus?,
+    accentColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val bg = when (slotStatus) {
+        LogStatus.COMPLETED -> accentColor
+        LogStatus.MISSED -> MaterialTheme.colorScheme.errorContainer
+        LogStatus.INTENTIONALLY_SKIPPED -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+    }
+    val fg = when (slotStatus) {
+        LogStatus.COMPLETED -> Color.White
+        LogStatus.MISSED -> MaterialTheme.colorScheme.error
+        LogStatus.INTENTIONALLY_SKIPPED -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val icon = when (slotStatus) {
+        LogStatus.COMPLETED -> Icons.Default.Check
+        LogStatus.MISSED -> Icons.Default.Close
+        LogStatus.INTENTIONALLY_SKIPPED -> Icons.Default.SkipNext
+        else -> null
+    }
+
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = bg,
+        border = if (slotStatus == null || slotStatus == LogStatus.SCHEDULED) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+        } else null,
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = "$label ${slotStatus?.label ?: "Pending"}",
+                    tint = fg,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = fg
+            )
+        }
+    }
+}
+
+@Composable
 fun QuickLogDialog(
     summary: DayHabitSummary,
     dateLabel: String,
@@ -376,9 +474,11 @@ fun QuickLogDialog(
     onLogValue: (Double, String) -> Unit,
     onExplicitNo: (String) -> Unit,
     onSkip: (String) -> Unit,
-    onClearDay: () -> Unit
+    onClearDay: () -> Unit,
+    onLogSlot: ((slot: String, isDone: Boolean, isSkip: Boolean) -> Unit)? = null
 ) {
     val habit = summary.habit
+    val isTwiceDaily = habit.scheduleType == ScheduleType.TWICE_DAILY && onLogSlot != null
     var inputText by remember {
         mutableStateOf(
             when (habit.trackingType) {
@@ -413,55 +513,87 @@ fun QuickLogDialog(
                     color = MaterialTheme.colorScheme.primary
                 )
 
-                when (habit.trackingType) {
-                    TrackingType.BOOLEAN -> {
-                        Text(
-                            text = "Mark this habit completed or intentionally skip it for $dateLabel.",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    TrackingType.RATING -> {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
+                if (isTwiceDaily) {
+                    Text(
+                        text = "Log Morning and Night independently for $dateLabel.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TwiceDailySlotRow(
+                        title = "Morning (AM)",
+                        slotStatus = summary.morningStatus,
+                        onYes = { onLogSlot?.invoke("MORNING", true, false) },
+                        onNo = { onLogSlot?.invoke("MORNING", false, false) },
+                        onSkip = { onLogSlot?.invoke("MORNING", false, true) }
+                    )
+                    TwiceDailySlotRow(
+                        title = "Night (PM)",
+                        slotStatus = summary.eveningStatus,
+                        onYes = { onLogSlot?.invoke("EVENING", true, false) },
+                        onNo = { onLogSlot?.invoke("EVENING", false, false) },
+                        onSkip = { onLogSlot?.invoke("EVENING", false, true) }
+                    )
+                    if (summary.logs.isNotEmpty()) {
+                        TextButton(
+                            onClick = {
+                                onClearDay()
+                                onDismiss()
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                         ) {
-                            (1..5).forEach { score ->
-                                FilterChip(
-                                    selected = selectedRating == score,
-                                    onClick = { selectedRating = score },
-                                    label = { Text("$score") },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Default.Star,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                )
-                            }
+                            Text("Reset Day")
                         }
                     }
-                    else -> {
-                        OutlinedTextField(
-                            value = inputText,
-                            onValueChange = { inputText = it },
-                            label = { Text("Add ${habit.unit}") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("quick_log_value_input")
-                        )
+                } else {
+                    when (habit.trackingType) {
+                        TrackingType.BOOLEAN -> {
+                            Text(
+                                text = "Mark this habit completed or intentionally skip it for $dateLabel.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        TrackingType.RATING -> {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                (1..5).forEach { score ->
+                                    FilterChip(
+                                        selected = selectedRating == score,
+                                        onClick = { selectedRating = score },
+                                        label = { Text("$score") },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Star,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        else -> {
+                            OutlinedTextField(
+                                value = inputText,
+                                onValueChange = { inputText = it },
+                                label = { Text("Add ${habit.unit}") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("quick_log_value_input")
+                            )
+                        }
                     }
-                }
 
-                OutlinedTextField(
-                    value = noteText,
-                    onValueChange = { noteText = it },
-                    label = { Text("Note or skip reason (optional)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    OutlinedTextField(
+                        value = noteText,
+                        onValueChange = { noteText = it },
+                        label = { Text("Note or skip reason (optional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -509,8 +641,17 @@ fun QuickLogDialog(
                         }
                     }
                 }
-            },
-            confirmButton = {
+            }
+        },
+        confirmButton = {
+            if (isTwiceDaily) {
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.testTag("confirm_log_button")
+                ) {
+                    Text("Done")
+                }
+            } else {
                 Button(
                     onClick = {
                         val value = when (habit.trackingType) {
@@ -527,13 +668,77 @@ fun QuickLogDialog(
                 ) {
                     Text(if (habit.trackingType == TrackingType.BOOLEAN && habit.targetValue <= 1.0) "Yes (Done)" else "Save Log")
                 }
-            },
-            dismissButton = {
+            }
+        },
+        dismissButton = {
+            if (!isTwiceDaily) {
                 TextButton(onClick = onDismiss) {
                     Text("Cancel")
                 }
             }
-        )
+        }
+    )
+}
+
+@Composable
+private fun TwiceDailySlotRow(
+    title: String,
+    slotStatus: LogStatus?,
+    onYes: () -> Unit,
+    onNo: () -> Unit,
+    onSkip: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                StatusPill(slotStatus ?: LogStatus.SCHEDULED)
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                FilterChip(
+                    selected = slotStatus == LogStatus.COMPLETED,
+                    onClick = onYes,
+                    label = { Text("Yes") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = slotStatus == LogStatus.MISSED,
+                    onClick = onNo,
+                    label = { Text("No") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = slotStatus == LogStatus.INTENTIONALLY_SKIPPED,
+                    onClick = onSkip,
+                    label = { Text("Skip") },
+                    leadingIcon = {
+                        Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(14.dp))
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -698,4 +903,44 @@ private fun HeatmapLegendItem(label: String, color: Color) {
 
 fun formatCleanNumber(v: Double): String {
     return if (v % 1.0 == 0.0) v.toInt().toString() else String.format(java.util.Locale.US, "%.1f", v)
+}
+
+@Composable
+fun InfoTipButton(
+    title: String,
+    explanation: String,
+    modifier: Modifier = Modifier
+) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    IconButton(
+        onClick = { showDialog = true },
+        modifier = modifier.size(28.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Info,
+            contentDescription = "Info about $title",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text(title, style = MaterialTheme.typography.titleMedium) },
+            text = {
+                Text(
+                    text = explanation,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("Got it")
+                }
+            }
+        )
+    }
 }

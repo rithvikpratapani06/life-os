@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.data.model.AccentPalette
 import com.example.data.model.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -26,6 +27,9 @@ class UserPreferencesRepository(private val context: Context) {
         val STRESS_REMINDER_ENABLED = booleanPreferencesKey("stress_reminder_enabled")
         val STRESS_REMINDER_HOUR = intPreferencesKey("stress_reminder_hour")
         val STRESS_REMINDER_MINUTE = intPreferencesKey("stress_reminder_minute")
+        val ACCENT_PALETTE = stringPreferencesKey("accent_palette")
+        val USER_NAME = stringPreferencesKey("user_name")
+        val COMPACT_MODE = booleanPreferencesKey("compact_mode")
     }
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
@@ -57,6 +61,19 @@ class UserPreferencesRepository(private val context: Context) {
             prefs[Keys.STRESS_REMINDER_HOUR] ?: 21,
             prefs[Keys.STRESS_REMINDER_MINUTE] ?: 0
         )
+    }
+
+    val accentPalette: Flow<AccentPalette> = context.dataStore.data.map { prefs ->
+        val raw = prefs[Keys.ACCENT_PALETTE] ?: AccentPalette.EMERALD.name
+        runCatching { AccentPalette.valueOf(raw) }.getOrDefault(AccentPalette.EMERALD)
+    }
+
+    val userName: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[Keys.USER_NAME] ?: ""
+    }
+
+    val compactMode: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.COMPACT_MODE] ?: false
     }
 
     suspend fun setThemeMode(mode: ThemeMode) {
@@ -95,6 +112,18 @@ class UserPreferencesRepository(private val context: Context) {
             it[Keys.STRESS_REMINDER_HOUR] = hour.coerceIn(0, 23)
             it[Keys.STRESS_REMINDER_MINUTE] = minute.coerceIn(0, 59)
         }
+    }
+
+    suspend fun setAccentPalette(palette: AccentPalette) {
+        context.dataStore.edit { it[Keys.ACCENT_PALETTE] = palette.name }
+    }
+
+    suspend fun setUserName(name: String) {
+        context.dataStore.edit { it[Keys.USER_NAME] = name.trim().take(30) }
+    }
+
+    suspend fun setCompactMode(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.COMPACT_MODE] = enabled }
     }
 
     companion object {
