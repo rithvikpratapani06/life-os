@@ -1,0 +1,6 @@
+{
+  "name": "Life OS",
+  "description": "Personal offline-first life management, habit tracking, and analytics application.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
