@@ -19,9 +19,10 @@ import kotlinx.coroutines.launch
         HabitEntity::class,
         HabitLogEntity::class,
         com.example.data.local.entity.StressLogEntity::class,
-        com.example.data.local.entity.ExpenseEntity::class
+        com.example.data.local.entity.ExpenseEntity::class,
+        com.example.data.local.entity.ActivityLogEntity::class
     ],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -79,6 +80,31 @@ abstract class LifeOsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS activity_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        logDate TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        kind TEXT NOT NULL,
+                        detail TEXT NOT NULL,
+                        loggedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_activity_logs_logDate ON activity_logs (logDate)")
+            }
+        }
+
+        private val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE habits ADD COLUMN iconKey TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE habits ADD COLUMN colorHex INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context): LifeOsDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -86,7 +112,7 @@ abstract class LifeOsDatabase : RoomDatabase() {
                     LifeOsDatabase::class.java,
                     "life_os.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .addCallback(SeedCategoriesCallback())
                     .build()
                 INSTANCE = instance

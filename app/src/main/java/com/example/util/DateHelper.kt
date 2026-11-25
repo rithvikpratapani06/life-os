@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 object DateHelper {
@@ -142,8 +143,65 @@ object DateHelper {
         return shortMonthFormat.get()!!.format(cal.time)
     }
 
+    private val fullMonthDayFormat = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue(): SimpleDateFormat =
+            SimpleDateFormat("MMMM d", Locale.getDefault())
+    }
+
+    fun firstDayOfMonthOffsetSunZero(year: Int, monthZeroBased: Int): Int {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, monthZeroBased)
+            set(Calendar.DAY_OF_MONTH, 1)
+        }
+        return cal.get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY
+    }
+
+    fun formatMonthDayFull(dateStr: String): String {
+        val cal = parse(dateStr)
+        return fullMonthDayFormat.get()!!.format(cal.time)
+    }
+
+    private val utcIsoFormat = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue(): SimpleDateFormat =
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+                isLenient = false
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+    }
+
+    fun toUtcMillis(dateStr: String): Long {
+        return utcIsoFormat.get()!!.parse(dateStr)?.time ?: System.currentTimeMillis()
+    }
+
+    fun fromUtcMillis(utcMillis: Long): String {
+        return utcIsoFormat.get()!!.format(Date(utcMillis))
+    }
+
+    fun startOfWeekMonday(dateStr: String): String {
+        val offsetFromMonday = dayOfWeekMonZero(dateStr)
+        return addDays(dateStr, -offsetFromMonday)
+    }
+
     fun endOfWeekSunday(dateStr: String): String {
         val offsetToSunday = 6 - dayOfWeekMonZero(dateStr)
         return addDays(dateStr, offsetToSunday)
+    }
+
+    fun formatShortMonthDay(dateStr: String): String {
+        val cal = parse(dateStr)
+        val fmt = SimpleDateFormat("MMM d", Locale.getDefault())
+        return fmt.format(cal.time)
+    }
+
+    fun formatMonthYearFromPrefix(monthPrefix: String): String {
+        val parts = monthPrefix.split("-")
+        val year = parts.getOrNull(0)?.toIntOrNull()
+        val monthOneBased = parts.getOrNull(1)?.toIntOrNull()
+        return if (year != null && monthOneBased != null && monthOneBased in 1..12) {
+            formatMonthYear(year, monthOneBased - 1)
+        } else {
+            monthPrefix
+        }
     }
 }

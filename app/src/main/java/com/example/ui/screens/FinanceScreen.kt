@@ -1,12 +1,9 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,21 +15,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,38 +32,71 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.data.local.entity.ExpenseEntity
 import com.example.data.model.ExpenseCategory
 import com.example.data.model.PaymentMethod
 import com.example.ui.LifeOsUiState
+import com.example.ui.components.DayWiseSpendingSection
+import com.example.ui.components.ExpenseDrillDownFilter
+import com.example.ui.components.ExpenseDrillDownSheet
+import com.example.ui.components.ExpenseEditorDialog
+import com.example.ui.components.ExpenseItemRow
+import com.example.ui.components.InfoTipButton
+import com.example.ui.components.InteractiveBreakdownCard
+import com.example.ui.components.MonthWiseSpendingSection
+import com.example.ui.components.WeekWiseSpendingSection
+import com.example.ui.components.formatCurrency
 import com.example.ui.theme.MonoMetricLarge
-import com.example.ui.theme.MonoMetricMedium
 import com.example.util.DateHelper
-import java.util.Locale
 
-@OptIn(ExperimentalLayoutApi::class)
+private enum class FinanceViewMode(val label: String) {
+    DAY("Day Wise"),
+    WEEK("Week Wise"),
+    MONTH("Month Wise")
+}
+
 @Composable
 fun FinanceScreen(
     uiState: LifeOsUiState,
     onAddExpense: (String, Double, ExpenseCategory, String, PaymentMethod, String) -> Unit,
+    onUpdateExpense: (ExpenseEntity) -> Unit,
     onDeleteExpense: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val finance = uiState.financeSummary
-    var showAddDialog by remember { mutableStateOf(false) }
+    var viewMode by remember { mutableStateOf(FinanceViewMode.DAY) }
+    var selectedDayDate by remember(uiState.logicalToday) { mutableStateOf(uiState.logicalToday) }
+    var selectedWeekStart by remember(finance.weekSummaries) {
+        mutableStateOf(
+            finance.weekSummaries.firstOrNull()?.weekStartDate
+                ?: DateHelper.startOfWeekMonday(uiState.logicalToday)
+        )
+    }
+    var selectedMonthPrefix by remember(finance.monthSummaries) {
+        mutableStateOf(
+            finance.monthSummaries.firstOrNull()?.monthPrefix
+                ?: uiState.logicalToday.take(7)
+        )
+    }
+
+    var showEditorDialog by remember { mutableStateOf(false) }
+    var editorDefaultDate by remember { mutableStateOf<String?>(null) }
+    var editingExpense by remember { mutableStateOf<ExpenseEntity?>(null) }
+    var activeDrillDown by remember { mutableStateOf<ExpenseDrillDownFilter?>(null) }
+
+    val currentMonthPrefix = uiState.logicalToday.take(7)
+    val currentMonthStart = "$currentMonthPrefix-01"
+    val currentMonthLabel = remember(currentMonthPrefix) {
+        DateHelper.formatMonthYearFromPrefix(currentMonthPrefix)
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
             Row(
@@ -85,13 +107,17 @@ fun FinanceScreen(
                 Column {
                     Text("Finance Manager", style = MaterialTheme.typography.headlineMedium)
                     Text(
-                        text = "Daily & monthly expense intelligence",
+                        text = "Day, week & month spending intelligence",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Button(
-                    onClick = { showAddDialog = true },
+                    onClick = {
+                        editingExpense = null
+                        editorDefaultDate = if (viewMode == FinanceViewMode.DAY) selectedDayDate else uiState.logicalToday
+                        showEditorDialog = true
+                    },
                     modifier = Modifier.testTag("add_expense_button")
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -128,201 +154,263 @@ fun FinanceScreen(
                             modifier = Modifier.size(28.dp)
                         )
                         Column {
-                            Text("How much did you spend today?", style = MaterialTheme.typography.titleSmall)
+                            Text("How much did you spend?", style = MaterialTheme.typography.titleSmall)
                             Text(
-                                text = "Log Cash, UPI, Credit/Debit UPI expenses",
+                                text = "Log today or missed days • Tap any entry to edit",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
-                    TextButton(onClick = { showAddDialog = true }) {
+                    TextButton(
+                        onClick = {
+                            editingExpense = null
+                            editorDefaultDate = uiState.logicalToday
+                            showEditorDialog = true
+                        }
+                    ) {
                         Text("Log Now")
                     }
                 }
             }
         }
 
-        // KPI Cards: Today, This Month, Monthly Daily Avg
+        // Interactive KPI Cards: Today, This Week, This Month
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    FinanceKpiCard(
+                        label = "Today",
+                        value = formatCurrency(finance.todaySpent),
+                        accent = MaterialTheme.colorScheme.primary,
+                        onClick = {
+                            viewMode = FinanceViewMode.DAY
+                            selectedDayDate = uiState.logicalToday
+                            activeDrillDown = ExpenseDrillDownFilter.ByDate(uiState.logicalToday)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FinanceKpiCard(
+                        label = "This Week",
+                        value = formatCurrency(finance.thisWeekSpent),
+                        accent = MaterialTheme.colorScheme.secondary,
+                        onClick = {
+                            viewMode = FinanceViewMode.WEEK
+                            selectedWeekStart = DateHelper.startOfWeekMonday(uiState.logicalToday)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FinanceKpiCard(
+                        label = "This Month",
+                        value = formatCurrency(finance.monthSpent),
+                        accent = MaterialTheme.colorScheme.tertiary,
+                        onClick = {
+                            viewMode = FinanceViewMode.MONTH
+                            selectedMonthPrefix = currentMonthPrefix
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Text(
+                    text = "This Month Daily Avg: ${formatCurrency(finance.monthDailyAverage)}/day • Tap any card or breakdown row for details",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // View Mode Switcher: Day Wise | Week Wise | Month Wise
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                FinanceKpiCard(
-                    label = "Today",
-                    value = formatCurrency(finance.todaySpent),
-                    accent = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f)
-                )
-                FinanceKpiCard(
-                    label = "This Month",
-                    value = formatCurrency(finance.monthSpent),
-                    accent = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.weight(1f)
-                )
-                FinanceKpiCard(
-                    label = "Daily Avg",
-                    value = formatCurrency(finance.monthDailyAverage),
-                    accent = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.weight(1f)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FinanceViewMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = viewMode == mode,
+                            onClick = { viewMode = mode },
+                            label = { Text(mode.label) },
+                            modifier = Modifier.testTag("finance_mode_${mode.name.lowercase()}")
+                        )
+                    }
+                }
+                InfoTipButton(
+                    title = "Day, Week & Month Views",
+                    explanation = "Switch between Day Wise, Week Wise, and Month Wise spending. Tap any day bar, day card, category, or payment method to see all expenses and how much you spent all day—and tap any expense to edit it."
                 )
             }
         }
 
-        // 7-Day Spending Chart
+        // Active Period Breakdown Section
         item {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-                modifier = Modifier.fillMaxWidth()
+            when (viewMode) {
+                FinanceViewMode.DAY -> DayWiseSpendingSection(
+                    logicalToday = uiState.logicalToday,
+                    selectedDate = selectedDayDate,
+                    last7Days = finance.last7DaysSpending,
+                    daySummaries = finance.daySummaries,
+                    onSelectDate = { date -> selectedDayDate = date },
+                    onAddForDate = { date ->
+                        editingExpense = null
+                        editorDefaultDate = date
+                        showEditorDialog = true
+                    },
+                    onEditExpense = { exp ->
+                        editingExpense = exp
+                        showEditorDialog = true
+                    },
+                    onDeleteExpense = onDeleteExpense,
+                    onOpenDaySheet = { date ->
+                        activeDrillDown = ExpenseDrillDownFilter.ByDate(date)
+                    },
+                    onTapCategory = { cat ->
+                        activeDrillDown = ExpenseDrillDownFilter.ByCategory(
+                            category = cat,
+                            periodLabel = DateHelper.formatReadable(selectedDayDate),
+                            startDate = selectedDayDate,
+                            endDate = selectedDayDate
+                        )
+                    },
+                    onTapPaymentMethod = { method ->
+                        activeDrillDown = ExpenseDrillDownFilter.ByPaymentMethod(
+                            method = method,
+                            periodLabel = DateHelper.formatReadable(selectedDayDate),
+                            startDate = selectedDayDate,
+                            endDate = selectedDayDate
+                        )
+                    }
+                )
+
+                FinanceViewMode.WEEK -> WeekWiseSpendingSection(
+                    weekSummaries = finance.weekSummaries,
+                    selectedWeekStart = selectedWeekStart,
+                    onSelectWeek = { weekStart ->
+                        selectedWeekStart = if (selectedWeekStart == weekStart) "" else weekStart
+                    },
+                    onOpenDaySheet = { date ->
+                        activeDrillDown = ExpenseDrillDownFilter.ByDate(date)
+                    },
+                    onTapCategory = { week, cat ->
+                        activeDrillDown = ExpenseDrillDownFilter.ByCategory(
+                            category = cat,
+                            periodLabel = week.label,
+                            startDate = week.weekStartDate,
+                            endDate = week.weekEndDate
+                        )
+                    },
+                    onTapPaymentMethod = { week, method ->
+                        activeDrillDown = ExpenseDrillDownFilter.ByPaymentMethod(
+                            method = method,
+                            periodLabel = week.label,
+                            startDate = week.weekStartDate,
+                            endDate = week.weekEndDate
+                        )
+                    },
+                    onEditExpense = { exp ->
+                        editingExpense = exp
+                        showEditorDialog = true
+                    },
+                    onDeleteExpense = onDeleteExpense
+                )
+
+                FinanceViewMode.MONTH -> MonthWiseSpendingSection(
+                    monthSummaries = finance.monthSummaries,
+                    selectedMonthPrefix = selectedMonthPrefix,
+                    onSelectMonth = { prefix ->
+                        selectedMonthPrefix = if (selectedMonthPrefix == prefix) "" else prefix
+                    },
+                    onOpenDaySheet = { date ->
+                        activeDrillDown = ExpenseDrillDownFilter.ByDate(date)
+                    },
+                    onTapCategory = { month, cat ->
+                        activeDrillDown = ExpenseDrillDownFilter.ByCategory(
+                            category = cat,
+                            periodLabel = month.label,
+                            startDate = "${month.monthPrefix}-01",
+                            endDate = "${month.monthPrefix}-31"
+                        )
+                    },
+                    onTapPaymentMethod = { month, method ->
+                        activeDrillDown = ExpenseDrillDownFilter.ByPaymentMethod(
+                            method = method,
+                            periodLabel = month.label,
+                            startDate = "${month.monthPrefix}-01",
+                            endDate = "${month.monthPrefix}-31"
+                        )
+                    },
+                    onEditExpense = { exp ->
+                        editingExpense = exp
+                        showEditorDialog = true
+                    },
+                    onDeleteExpense = onDeleteExpense
+                )
+            }
+        }
+
+        // Interactive Monthly Category & Payment Method Summaries (shown in Day mode for quick access)
+        if (viewMode == FinanceViewMode.DAY && finance.categoryTotals.isNotEmpty()) {
+            item {
+                InteractiveBreakdownCard(
+                    title = "What You Spent For ($currentMonthLabel)",
+                    rows = finance.categoryTotals.map { (cat, amt) -> cat.label to amt },
+                    total = finance.monthSpent,
+                    accentColor = MaterialTheme.colorScheme.secondary,
+                    onRowClick = { idx ->
+                        finance.categoryTotals.getOrNull(idx)?.first?.let { cat ->
+                            activeDrillDown = ExpenseDrillDownFilter.ByCategory(
+                                category = cat,
+                                periodLabel = currentMonthLabel,
+                                startDate = currentMonthStart,
+                                endDate = "${currentMonthPrefix}-31"
+                            )
+                        }
+                    }
+                )
+            }
+        }
+
+        if (viewMode == FinanceViewMode.DAY && finance.paymentMethodTotals.isNotEmpty()) {
+            item {
+                InteractiveBreakdownCard(
+                    title = "Payment Methods ($currentMonthLabel)",
+                    rows = finance.paymentMethodTotals.map { (pm, amt) -> pm.label to amt },
+                    total = finance.monthSpent,
+                    accentColor = MaterialTheme.colorScheme.primary,
+                    onRowClick = { idx ->
+                        finance.paymentMethodTotals.getOrNull(idx)?.first?.let { method ->
+                            activeDrillDown = ExpenseDrillDownFilter.ByPaymentMethod(
+                                method = method,
+                                periodLabel = currentMonthLabel,
+                                startDate = currentMonthStart,
+                                endDate = "${currentMonthPrefix}-31"
+                            )
+                        }
+                    }
+                )
+            }
+        }
+
+        // Recent Expenses List (tap or Edit icon to edit)
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("7-Day Daily Spending", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(14.dp))
-                    val maxSpend = finance.last7DaysSpending.maxOfOrNull { it.total }?.coerceAtLeast(1.0) ?: 1.0
-                    val barColor = MaterialTheme.colorScheme.secondary
-                    val trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp)
-                    ) {
-                        val count = finance.last7DaysSpending.size.coerceAtLeast(1)
-                        val slotWidth = size.width / count
-                        val barWidth = (slotWidth * 0.48f).coerceAtMost(32.dp.toPx())
-                        val maxHeight = size.height
-
-                        finance.last7DaysSpending.forEachIndexed { idx, point ->
-                            val left = idx * slotWidth + (slotWidth - barWidth) / 2f
-                            drawRoundRect(
-                                color = trackColor,
-                                topLeft = Offset(left, 0f),
-                                size = Size(barWidth, maxHeight),
-                                cornerRadius = CornerRadius(10f, 10f)
-                            )
-                            val ratio = (point.total / maxSpend).toFloat().coerceIn(0f, 1f)
-                            val fillHeight = maxHeight * ratio
-                            if (fillHeight > 0f) {
-                                drawRoundRect(
-                                    color = barColor,
-                                    topLeft = Offset(left, maxHeight - fillHeight),
-                                    size = Size(barWidth, fillHeight),
-                                    cornerRadius = CornerRadius(10f, 10f)
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        finance.last7DaysSpending.forEach { point ->
-                            Text(
-                                text = point.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
+                Text("Recent Expenses", style = MaterialTheme.typography.titleMedium)
+                if (finance.recentExpenses.isNotEmpty()) {
+                    Text(
+                        text = "Tap any item to edit",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
-        }
-
-        // Payment Method Analysis (Cash, UPI, UPI Credit/Debit)
-        if (finance.paymentMethodTotals.isNotEmpty()) {
-            item {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text("Payment Methods (This Month)", style = MaterialTheme.typography.titleMedium)
-                        val total = finance.monthSpent.coerceAtLeast(1.0)
-                        finance.paymentMethodTotals.forEach { (method, amount) ->
-                            val ratio = (amount / total).toFloat().coerceIn(0f, 1f)
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(method.label, style = MaterialTheme.typography.bodyMedium)
-                                    Text(
-                                        text = "${formatCurrency(amount)} (${(ratio * 100).toInt()}%)",
-                                        style = MonoMetricMedium,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                LinearProgressIndicator(
-                                    progress = { ratio },
-                                    color = MaterialTheme.colorScheme.primary,
-                                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(7.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // What You Spent For (Category Breakdown)
-        if (finance.categoryTotals.isNotEmpty()) {
-            item {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text("What You Spent For (This Month)", style = MaterialTheme.typography.titleMedium)
-                        val total = finance.monthSpent.coerceAtLeast(1.0)
-                        finance.categoryTotals.forEach { (cat, amount) ->
-                            val ratio = (amount / total).toFloat().coerceIn(0f, 1f)
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(cat.label, style = MaterialTheme.typography.bodyMedium)
-                                    Text(
-                                        text = "${formatCurrency(amount)} (${(ratio * 100).toInt()}%)",
-                                        style = MonoMetricMedium,
-                                        color = MaterialTheme.colorScheme.secondary
-                                    )
-                                }
-                                LinearProgressIndicator(
-                                    progress = { ratio },
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(7.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Recent Expenses List
-        item {
-            Text("Recent Expenses", style = MaterialTheme.typography.titleMedium)
         }
 
         if (finance.recentExpenses.isEmpty()) {
@@ -343,157 +431,58 @@ fun FinanceScreen(
             }
         } else {
             items(finance.recentExpenses, key = { it.id }) { exp ->
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(exp.title, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                text = "${DateHelper.formatReadable(exp.logDate)} • ${exp.category.label} • ${exp.paymentMethod.label}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = formatCurrency(exp.amount),
-                                style = MonoMetricMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            IconButton(onClick = { onDeleteExpense(exp.id) }) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Delete expense",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+                ExpenseItemRow(
+                    expense = exp,
+                    onEdit = { selected ->
+                        editingExpense = selected
+                        showEditorDialog = true
+                    },
+                    onDelete = onDeleteExpense
+                )
             }
         }
     }
 
-    if (showAddDialog) {
-        AddExpenseDialog(
+    if (showEditorDialog) {
+        ExpenseEditorDialog(
             logicalToday = uiState.logicalToday,
-            onDismiss = { showAddDialog = false },
-            onSave = { amount, cat, title, method, note ->
-                onAddExpense(uiState.logicalToday, amount, cat, title, method, note)
-                showAddDialog = false
+            initialExpense = editingExpense,
+            defaultDate = editorDefaultDate,
+            onDismiss = {
+                showEditorDialog = false
+                editingExpense = null
+            },
+            onSaveNew = { logDate, amount, cat, title, method, note ->
+                onAddExpense(logDate, amount, cat, title, method, note)
+                selectedDayDate = logDate
+                showEditorDialog = false
+            },
+            onUpdateExisting = { updated ->
+                onUpdateExpense(updated)
+                selectedDayDate = updated.logDate
+                showEditorDialog = false
+                editingExpense = null
             }
         )
     }
-}
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun AddExpenseDialog(
-    logicalToday: String,
-    onDismiss: () -> Unit,
-    onSave: (Double, ExpenseCategory, String, PaymentMethod, String) -> Unit
-) {
-    var amountText by remember { mutableStateOf("") }
-    var titleText by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(ExpenseCategory.FOOD) }
-    var selectedMethod by remember { mutableStateOf(PaymentMethod.UPI) }
-    var noteText by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Column {
-                Text("Log Expense", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    text = DateHelper.formatReadable(logicalToday),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = it },
-                    label = { Text("Amount Spent *") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = titleText,
-                    onValueChange = { titleText = it },
-                    label = { Text("What did you spend for?") },
-                    placeholder = { Text("e.g., Lunch, Metro, Coffee") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text("Category", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    ExpenseCategory.entries.forEach { cat ->
-                        FilterChip(
-                            selected = selectedCategory == cat,
-                            onClick = { selectedCategory = cat },
-                            label = { Text(cat.label) }
-                        )
-                    }
-                }
-                Text("Payment Method", style = MaterialTheme.typography.labelMedium)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    PaymentMethod.entries.forEach { method ->
-                        FilterChip(
-                            selected = selectedMethod == method,
-                            onClick = { selectedMethod = method },
-                            label = { Text(method.label) }
-                        )
-                    }
-                }
-                OutlinedTextField(
-                    value = noteText,
-                    onValueChange = { noteText = it },
-                    label = { Text("Note (optional)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val amt = amountText.toDoubleOrNull() ?: 0.0
-                    if (amt > 0.0) {
-                        onSave(amt, selectedCategory, titleText, selectedMethod, noteText)
-                    }
-                },
-                enabled = (amountText.toDoubleOrNull() ?: 0.0) > 0.0
-            ) {
-                Text("Save Expense")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
+    activeDrillDown?.let { filter ->
+        ExpenseDrillDownSheet(
+            filter = filter,
+            allExpenses = finance.allExpenses,
+            onDismiss = { activeDrillDown = null },
+            onAddForDate = { date ->
+                editingExpense = null
+                editorDefaultDate = date
+                showEditorDialog = true
+            },
+            onEditExpense = { exp ->
+                editingExpense = exp
+                showEditorDialog = true
+            },
+            onDeleteExpense = onDeleteExpense
+        )
+    }
 }
 
 @Composable
@@ -501,13 +490,14 @@ private fun FinanceKpiCard(
     label: String,
     value: String,
     accent: Color,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-        modifier = modifier
+        modifier = modifier.clickable(onClick = onClick)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
@@ -518,18 +508,15 @@ private fun FinanceKpiCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
-                style = MonoMetricLarge.copy(fontSize = androidx.compose.ui.unit.TextUnit(18f, androidx.compose.ui.unit.TextUnitType.Sp)),
+                style = MonoMetricLarge.copy(
+                    fontSize = androidx.compose.ui.unit.TextUnit(
+                        18f,
+                        androidx.compose.ui.unit.TextUnitType.Sp
+                    )
+                ),
                 color = accent,
                 maxLines = 1
             )
         }
-    }
-}
-
-private fun formatCurrency(amount: Double): String {
-    return if (amount % 1.0 == 0.0) {
-        String.format(Locale.US, "%.0f", amount)
-    } else {
-        String.format(Locale.US, "%.2f", amount)
     }
 }

@@ -4,12 +4,14 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.LifeOsDatabase
+import com.example.data.local.entity.ActivityLogEntity
 import com.example.data.local.entity.CategoryEntity
 import com.example.data.local.entity.ExpenseEntity
 import com.example.data.local.entity.HabitEntity
 import com.example.data.local.entity.HabitLogEntity
 import com.example.data.local.entity.StressLogEntity
 import com.example.data.model.AccentPalette
+import com.example.data.model.ActivityKind
 import com.example.data.model.ExpenseCategory
 import com.example.data.model.HabitStatus
 import com.example.data.model.LogStatus
@@ -32,6 +34,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 data class DailyTrendPoint(
     val date: String,
@@ -74,6 +77,15 @@ data class HabitAnalytics(
     val monthlySkipped: Int,
     val monthlyMissed: Int,
     val monthlyTotalValue: Double,
+    val allTimeRate: Float,
+    val allTimeCompleted: Int,
+    val allTimePartial: Int,
+    val allTimeSkipped: Int,
+    val allTimeMissed: Int,
+    val surplusPercent: Int,
+    val debtPercent: Int,
+    val netBalance: Int,
+    val daySummariesByDate: Map<String, DayHabitSummary>,
     val heatmapDays: List<HeatmapCell> // Last 84 days (12 weeks)
 )
 
@@ -105,15 +117,84 @@ data class DailySpendPoint(
     val total: Double
 )
 
+data class DaySpendSummary(
+    val date: String,
+    val total: Double,
+    val count: Int,
+    val expenses: List<ExpenseEntity>,
+    val categoryTotals: List<Pair<ExpenseCategory, Double>>,
+    val paymentTotals: List<Pair<PaymentMethod, Double>>
+)
+
+data class WeekSpendSummary(
+    val weekStartDate: String,
+    val weekEndDate: String,
+    val label: String,
+    val total: Double,
+    val count: Int,
+    val dailyAverage: Double,
+    val activeDaysCount: Int,
+    val dayPoints: List<DailySpendPoint>,
+    val expenses: List<ExpenseEntity>,
+    val categoryTotals: List<Pair<ExpenseCategory, Double>>,
+    val paymentTotals: List<Pair<PaymentMethod, Double>>
+)
+
+data class MonthSpendSummary(
+    val monthPrefix: String,
+    val label: String,
+    val total: Double,
+    val count: Int,
+    val dailyAverage: Double,
+    val activeDaysCount: Int,
+    val daySummaries: List<DaySpendSummary>,
+    val expenses: List<ExpenseEntity>,
+    val categoryTotals: List<Pair<ExpenseCategory, Double>>,
+    val paymentTotals: List<Pair<PaymentMethod, Double>>
+)
+
 data class FinanceSummary(
     val todaySpent: Double = 0.0,
+    val thisWeekSpent: Double = 0.0,
     val monthSpent: Double = 0.0,
     val monthDailyAverage: Double = 0.0,
     val paymentMethodTotals: List<Pair<PaymentMethod, Double>> = emptyList(),
     val categoryTotals: List<Pair<ExpenseCategory, Double>> = emptyList(),
     val last7DaysSpending: List<DailySpendPoint> = emptyList(),
-    val recentExpenses: List<ExpenseEntity> = emptyList()
+    val daySummaries: List<DaySpendSummary> = emptyList(),
+    val weekSummaries: List<WeekSpendSummary> = emptyList(),
+    val monthSummaries: List<MonthSpendSummary> = emptyList(),
+    val recentExpenses: List<ExpenseEntity> = emptyList(),
+    val allExpenses: List<ExpenseEntity> = emptyList()
 )
+
+data class ActivityBreakdown(
+    val name: String,
+    val kind: ActivityKind,
+    val weeklyCount: Int,
+    val monthlyCount: Int,
+    val totalCount: Int,
+    val lastDate: String
+)
+
+data class ActivityAnalytics(
+    val todayActivities: List<ActivityLogEntity> = emptyList(),
+    val plannerActivities: List<ActivityLogEntity> = emptyList(),
+    val weeklyTotal: Int = 0,
+    val monthlyTotal: Int = 0,
+    val breakdowns: List<ActivityBreakdown> = emptyList(),
+    val recentActivities: List<ActivityLogEntity> = emptyList(),
+    val quickPresets: List<Pair<String, ActivityKind>> = defaultPresets
+) {
+    companion object {
+        val defaultPresets = listOf(
+            "Cricket" to ActivityKind.SPORTS,
+            "Badminton" to ActivityKind.SPORTS,
+            "Biryani" to ActivityKind.FOOD,
+            "Alcohol" to ActivityKind.DRINK
+        )
+    }
+}
 
 data class LifeOsUiState(
     val logicalToday: String = DateHelper.logicalToday(),
@@ -139,7 +220,8 @@ data class LifeOsUiState(
     val monthlyInsights: PeriodInsights = PeriodInsights(),
     val perHabitAnalytics: List<HabitAnalytics> = emptyList(),
     val stressAnalytics: StressAnalytics = StressAnalytics(),
-    val financeSummary: FinanceSummary = FinanceSummary()
+    val financeSummary: FinanceSummary = FinanceSummary(),
+    val activityAnalytics: ActivityAnalytics = ActivityAnalytics()
 )
 
 class LifeOsViewModel(application: Application) : AndroidViewModel(application) {
@@ -153,14 +235,21 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
     private val _events = MutableSharedFlow<String>()
     val events = _events.asSharedFlow()
 
-    private val coreDataFlow = combine(
+    private val habitCoreFlow = combine(
         repository.categories,
         repository.habits,
-        repository.logs,
+        repository.logs
+    ) { cats, hbs, lgs ->
+        Triple(cats, hbs, lgs)
+    }
+
+    private val coreDataFlow = combine(
+        habitCoreFlow,
         repository.stressLogs,
-        repository.expenses
-    ) { cats, hbs, lgs, stress, exps ->
-        DataBundle(cats, hbs, lgs, stress, exps)
+        repository.expenses,
+        repository.activityLogs
+    ) { habitTriple, stress, exps, acts ->
+        DataBundle(habitTriple.first, habitTriple.second, habitTriple.third, stress, exps, acts)
     }
 
     private val personalizationFlow = combine(
@@ -229,6 +318,7 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
         val perHabit = computePerHabitAnalytics(today, habits, catMap, logsByHabit, streakMap)
         val stressAnalytics = computeStressAnalytics(today, stressLogs)
         val financeSummary = computeFinanceSummary(today, expenses)
+        val activityAnalytics = computeActivityAnalytics(today, pref.plannerDate, data.activityLogs)
 
         LifeOsUiState(
             logicalToday = today,
@@ -254,7 +344,8 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
             monthlyInsights = monthly,
             perHabitAnalytics = perHabit,
             stressAnalytics = stressAnalytics,
-            financeSummary = financeSummary
+            financeSummary = financeSummary,
+            activityAnalytics = activityAnalytics
         )
     }.flowOn(Dispatchers.Default)
         .stateIn(
@@ -268,7 +359,8 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
         val habits: List<HabitEntity>,
         val logs: List<HabitLogEntity>,
         val stressLogs: List<StressLogEntity>,
-        val expenses: List<ExpenseEntity>
+        val expenses: List<ExpenseEntity>,
+        val activityLogs: List<ActivityLogEntity>
     )
 
     private data class PrefsBundle(
@@ -461,10 +553,65 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
                 val wDenom = (wSched - wSkip).coerceAtLeast(0)
                 val mDenom = (mSched - mSkip).coerceAtLeast(0)
 
+                // All-time stats (up to 365 days back from today)
+                val daySummaryMap = mutableMapOf<String, DayHabitSummary>()
+                var allComp = 0; var allPart = 0; var allSkip = 0; var allMiss = 0; var allSched = 0
+                var actualUnits = 0.0
+                var expectedUnits = 0.0
+
+                val spanDays = if (habit.startDate <= today) {
+                    DateHelper.daysBetween(habit.startDate, today).coerceIn(0, 365)
+                } else -1
+                if (spanDays >= 0) {
+                    var cursor = DateHelper.addDays(today, -spanDays)
+                    for (i in 0..spanDays) {
+                        val dayLogs = logsByDate[cursor].orEmpty()
+                        val scheduled = if (habit.scheduleType == ScheduleType.OCCASIONAL) {
+                            dayLogs.isNotEmpty()
+                        } else {
+                            LifeOsRepository.isHabitScheduledOn(habit, cursor)
+                        }
+                        if (scheduled) {
+                            val s = LifeOsRepository.evaluateDaySummary(
+                                habit = habit,
+                                category = catMap[habit.categoryId],
+                                logsForDay = dayLogs,
+                                allLogsForHabit = habitLogs,
+                                targetDate = cursor,
+                                logicalToday = today,
+                                precomputedStreak = habitStreak
+                            )
+                            daySummaryMap[cursor] = s
+                            allSched++
+                            when (s.status) {
+                                LogStatus.COMPLETED -> allComp++
+                                LogStatus.PARTIALLY_COMPLETED -> allPart++
+                                LogStatus.INTENTIONALLY_SKIPPED -> allSkip++
+                                LogStatus.MISSED -> allMiss++
+                                LogStatus.SCHEDULED -> Unit
+                            }
+                            if (s.status != LogStatus.INTENTIONALLY_SKIPPED) {
+                                expectedUnits += s.targetValue
+                                actualUnits += s.totalValue
+                            }
+                        }
+                        cursor = DateHelper.addDays(cursor, 1)
+                    }
+                }
+
+                val allDenom = (allSched - allSkip).coerceAtLeast(0)
+                val netBal = (actualUnits - expectedUnits).roundToInt()
+                val surplusPct = if (expectedUnits > 0.0 && actualUnits > expectedUnits) {
+                    (((actualUnits - expectedUnits) / expectedUnits) * 100.0).roundToInt()
+                } else 0
+                val debtPct = if (expectedUnits > 0.0 && actualUnits < expectedUnits) {
+                    (((expectedUnits - actualUnits) / expectedUnits) * 100.0).roundToInt()
+                } else 0
+
                 HabitAnalytics(
                     habit = habit,
                     category = catMap[habit.categoryId],
-                    currentStreak = LifeOsRepository.computeCurrentStreak(habit, habitLogs, today),
+                    currentStreak = habitStreak,
                     bestStreak = LifeOsRepository.computeBestStreak(habit, habitLogs, today),
                     weeklyRate = if (wDenom == 0) 0f else wComp.toFloat() / wDenom.toFloat(),
                     weeklyCompleted = wComp,
@@ -477,6 +624,15 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
                     monthlySkipped = mSkip,
                     monthlyMissed = mMiss,
                     monthlyTotalValue = mTotalVal,
+                    allTimeRate = if (allDenom == 0) 0f else allComp.toFloat() / allDenom.toFloat(),
+                    allTimeCompleted = allComp,
+                    allTimePartial = allPart,
+                    allTimeSkipped = allSkip,
+                    allTimeMissed = allMiss,
+                    surplusPercent = surplusPct,
+                    debtPercent = debtPct,
+                    netBalance = netBal,
+                    daySummariesByDate = daySummaryMap,
                     heatmapDays = heatmap
                 )
             }
@@ -635,7 +791,14 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         viewModelScope.launch {
             repository.addExpense(logDate, amount, category, title, paymentMethod, note)
-            _events.emit("Expense recorded")
+            _events.emit("Expense recorded for ${DateHelper.formatReadable(logDate)}")
+        }
+    }
+
+    fun updateExpense(expense: ExpenseEntity) {
+        viewModelScope.launch {
+            repository.updateExpense(expense)
+            _events.emit("Expense updated for ${DateHelper.formatReadable(expense.logDate)}")
         }
     }
 
@@ -644,6 +807,61 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
             repository.deleteExpense(expenseId)
             _events.emit("Expense deleted")
         }
+    }
+
+    fun logActivity(
+        logDate: String,
+        name: String,
+        kind: ActivityKind,
+        detail: String
+    ) {
+        viewModelScope.launch {
+            repository.logActivity(logDate, name, kind, detail)
+            _events.emit("Activity logged: ${name.trim()}")
+        }
+    }
+
+    fun deleteActivity(id: Long) {
+        viewModelScope.launch {
+            repository.deleteActivity(id)
+            _events.emit("Activity removed")
+        }
+    }
+
+    private fun computeActivityAnalytics(
+        today: String,
+        plannerDate: String,
+        logs: List<ActivityLogEntity>
+    ): ActivityAnalytics {
+        val last7 = DateHelper.lastNDates(today, 7).toSet()
+        val last30 = DateHelper.lastNDates(today, 30).toSet()
+        val grouped = logs.groupBy { it.name.trim().lowercase() }
+        val breakdowns = grouped.values.mapNotNull { group ->
+            val first = group.firstOrNull() ?: return@mapNotNull null
+            ActivityBreakdown(
+                name = first.name,
+                kind = first.kind,
+                weeklyCount = group.count { it.logDate in last7 },
+                monthlyCount = group.count { it.logDate in last30 },
+                totalCount = group.size,
+                lastDate = group.maxOf { it.logDate }
+            )
+        }.sortedByDescending { it.monthlyCount * 1000 + it.totalCount }
+
+        val customPresets = breakdowns.map { it.name to it.kind }
+        val mergedPresets = (customPresets + ActivityAnalytics.defaultPresets)
+            .distinctBy { it.first.lowercase() }
+            .take(8)
+
+        return ActivityAnalytics(
+            todayActivities = logs.filter { it.logDate == today },
+            plannerActivities = logs.filter { it.logDate == plannerDate },
+            weeklyTotal = logs.count { it.logDate in last7 },
+            monthlyTotal = logs.count { it.logDate in last30 },
+            breakdowns = breakdowns,
+            recentActivities = logs.take(40),
+            quickPresets = mergedPresets
+        )
     }
 
     private fun computeStressAnalytics(today: String, logs: List<StressLogEntity>): StressAnalytics {
@@ -670,22 +888,33 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
+    private fun computeCategoryTotals(list: List<ExpenseEntity>): List<Pair<ExpenseCategory, Double>> {
+        return ExpenseCategory.entries.map { cat ->
+            cat to list.filter { it.category == cat }.sumOf { it.amount }
+        }.filter { it.second > 0.0 }.sortedByDescending { it.second }
+    }
+
+    private fun computePaymentTotals(list: List<ExpenseEntity>): List<Pair<PaymentMethod, Double>> {
+        return PaymentMethod.entries.map { pm ->
+            pm to list.filter { it.paymentMethod == pm }.sumOf { it.amount }
+        }.filter { it.second > 0.0 }.sortedByDescending { it.second }
+    }
+
     private fun computeFinanceSummary(today: String, expenses: List<ExpenseEntity>): FinanceSummary {
         val monthPrefix = today.take(7) // yyyy-MM
         val dayOfMonth = today.takeLast(2).toIntOrNull()?.coerceAtLeast(1) ?: 1
+        val thisWeekStart = DateHelper.startOfWeekMonday(today)
+        val lastWeekStart = DateHelper.addDays(thisWeekStart, -7)
+        val thisWeekEnd = DateHelper.endOfWeekSunday(today)
 
         val todaySpent = expenses.filter { it.logDate == today }.sumOf { it.amount }
+        val thisWeekSpent = expenses.filter { it.logDate in thisWeekStart..thisWeekEnd }.sumOf { it.amount }
         val monthExpenses = expenses.filter { it.logDate.startsWith(monthPrefix) }
         val monthSpent = monthExpenses.sumOf { it.amount }
         val monthDailyAvg = monthSpent / dayOfMonth.toDouble()
 
-        val paymentTotals = PaymentMethod.entries.map { pm ->
-            pm to monthExpenses.filter { it.paymentMethod == pm }.sumOf { it.amount }
-        }.filter { it.second > 0.0 }.sortedByDescending { it.second }
-
-        val categoryTotals = ExpenseCategory.entries.map { cat ->
-            cat to monthExpenses.filter { it.category == cat }.sumOf { it.amount }
-        }.filter { it.second > 0.0 }.sortedByDescending { it.second }
+        val paymentTotals = computePaymentTotals(monthExpenses)
+        val categoryTotals = computeCategoryTotals(monthExpenses)
 
         val last7 = DateHelper.lastNDates(today, 7)
         val byDate = expenses.groupBy { it.logDate }
@@ -697,14 +926,115 @@ class LifeOsViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
 
+        val daySummaries = byDate.entries
+            .sortedByDescending { it.key }
+            .map { (date, list) ->
+                DaySpendSummary(
+                    date = date,
+                    total = list.sumOf { it.amount },
+                    count = list.size,
+                    expenses = list,
+                    categoryTotals = computeCategoryTotals(list),
+                    paymentTotals = computePaymentTotals(list)
+                )
+            }
+
+        val byWeek = expenses.groupBy { DateHelper.startOfWeekMonday(it.logDate) }
+        val weekSummaries = byWeek.entries
+            .sortedByDescending { it.key }
+            .map { (weekStart, list) ->
+                val weekEnd = DateHelper.addDays(weekStart, 6)
+                val rangeText = "${DateHelper.formatShortMonthDay(weekStart)} – ${DateHelper.formatShortMonthDay(weekEnd)}"
+                val label = when (weekStart) {
+                    thisWeekStart -> "This Week ($rangeText)"
+                    lastWeekStart -> "Last Week ($rangeText)"
+                    else -> rangeText
+                }
+                val weekByDate = list.groupBy { it.logDate }
+                val dayPoints = (0..6).map { offset ->
+                    val d = DateHelper.addDays(weekStart, offset)
+                    DailySpendPoint(
+                        date = d,
+                        label = DateHelper.shortDayLabel(d),
+                        total = weekByDate[d].orEmpty().sumOf { it.amount }
+                    )
+                }
+                val weekTotal = list.sumOf { it.amount }
+                val daysDivisor = if (weekStart == thisWeekStart) {
+                    (DateHelper.dayOfWeekMonZero(today) + 1).coerceAtLeast(1)
+                } else {
+                    7
+                }
+                WeekSpendSummary(
+                    weekStartDate = weekStart,
+                    weekEndDate = weekEnd,
+                    label = label,
+                    total = weekTotal,
+                    count = list.size,
+                    dailyAverage = weekTotal / daysDivisor.toDouble(),
+                    activeDaysCount = weekByDate.size,
+                    dayPoints = dayPoints,
+                    expenses = list,
+                    categoryTotals = computeCategoryTotals(list),
+                    paymentTotals = computePaymentTotals(list)
+                )
+            }
+
+        val byMonth = expenses.groupBy { it.logDate.take(7) }
+        val monthSummaries = byMonth.entries
+            .sortedByDescending { it.key }
+            .map { (mPrefix, list) ->
+                val monthByDate = list.groupBy { it.logDate }
+                val monthDays = monthByDate.entries
+                    .sortedByDescending { it.key }
+                    .map { (date, dayList) ->
+                        DaySpendSummary(
+                            date = date,
+                            total = dayList.sumOf { it.amount },
+                            count = dayList.size,
+                            expenses = dayList,
+                            categoryTotals = computeCategoryTotals(dayList),
+                            paymentTotals = computePaymentTotals(dayList)
+                        )
+                    }
+                val mTotal = list.sumOf { it.amount }
+                val daysDivisor = if (mPrefix == monthPrefix) {
+                    dayOfMonth
+                } else {
+                    val parts = mPrefix.split("-")
+                    val y = parts.getOrNull(0)?.toIntOrNull()
+                    val m = parts.getOrNull(1)?.toIntOrNull()
+                    if (y != null && m != null && m in 1..12) {
+                        DateHelper.daysInMonth(y, m - 1).size.coerceAtLeast(1)
+                    } else 30
+                }
+                MonthSpendSummary(
+                    monthPrefix = mPrefix,
+                    label = DateHelper.formatMonthYearFromPrefix(mPrefix),
+                    total = mTotal,
+                    count = list.size,
+                    dailyAverage = mTotal / daysDivisor.toDouble(),
+                    activeDaysCount = monthByDate.size,
+                    daySummaries = monthDays,
+                    expenses = list,
+                    categoryTotals = computeCategoryTotals(list),
+                    paymentTotals = computePaymentTotals(list)
+                )
+            }
+
         return FinanceSummary(
             todaySpent = todaySpent,
+            thisWeekSpent = thisWeekSpent,
             monthSpent = monthSpent,
             monthDailyAverage = monthDailyAvg,
             paymentMethodTotals = paymentTotals,
             categoryTotals = categoryTotals,
             last7DaysSpending = last7Points,
-            recentExpenses = expenses.take(30)
+            daySummaries = daySummaries,
+            weekSummaries = weekSummaries,
+            monthSummaries = monthSummaries,
+            recentExpenses = expenses.take(30),
+            allExpenses = expenses
         )
     }
 

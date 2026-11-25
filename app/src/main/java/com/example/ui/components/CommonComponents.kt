@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,14 +28,19 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.LocalBar
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.SportsCricket
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.Info
@@ -67,12 +74,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.data.model.ActivityKind
 import com.example.data.model.LogStatus
 import com.example.data.model.ScheduleType
 import com.example.data.model.TrackingType
 import com.example.data.repository.DayHabitSummary
 import com.example.ui.theme.MonoMetricLarge
 import com.example.ui.theme.MonoMetricMedium
+import com.example.ui.theme.habitIconAndColor
 import kotlin.math.roundToInt
 
 fun categoryIconFor(key: String): ImageVector = when (key) {
@@ -169,7 +178,7 @@ fun DayHabitCard(
     onLogSlot: ((slot: String, isDone: Boolean, isSkip: Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val catColor = summary.category?.let { Color(it.colorHex) } ?: MaterialTheme.colorScheme.primary
+    val (habitIcon, catColor) = habitIconAndColor(summary.habit, summary.category)
     val isCompleted = summary.status == LogStatus.COMPLETED
     val isSkipped = summary.status == LogStatus.INTENTIONALLY_SKIPPED
 
@@ -193,13 +202,21 @@ fun DayHabitCard(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(42.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(catColor)
-            )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = catColor.copy(alpha = 0.14f),
+                border = BorderStroke(1.dp, catColor.copy(alpha = 0.35f)),
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = habitIcon,
+                        contentDescription = summary.habit.name,
+                        tint = catColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -943,4 +960,126 @@ fun InfoTipButton(
             }
         )
     }
+}
+
+fun activityKindIcon(kind: ActivityKind): ImageVector = when (kind) {
+    ActivityKind.SPORTS -> Icons.Default.SportsCricket
+    ActivityKind.FOOD -> Icons.Default.Restaurant
+    ActivityKind.DRINK -> Icons.Default.LocalBar
+    ActivityKind.SOCIAL -> Icons.Default.Groups
+    ActivityKind.OTHER -> Icons.Default.EventNote
+}
+
+@Composable
+fun LogActivityDialog(
+    dateLabel: String,
+    presets: List<Pair<String, ActivityKind>>,
+    onDismiss: () -> Unit,
+    onSave: (name: String, kind: ActivityKind, detail: String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var selectedKind by remember { mutableStateOf(ActivityKind.SPORTS) }
+    var detail by remember { mutableStateOf("") }
+    var nameError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text("Log Occasional Activity", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    text = dateLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "For events like Cricket, Badminton, Biryani, or Alcohol—won't count as missed or affect habit streaks.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    presets.forEach { (presetName, presetKind) ->
+                        FilterChip(
+                            selected = name.equals(presetName, ignoreCase = true),
+                            onClick = {
+                                name = presetName
+                                selectedKind = presetKind
+                                nameError = false
+                            },
+                            label = { Text(presetName) }
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        nameError = false
+                    },
+                    label = { Text("Activity / Event Name *") },
+                    placeholder = { Text("e.g., Cricket, Biryani, Alcohol") },
+                    isError = nameError,
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("activity_name_input")
+                )
+                Text("Type", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    ActivityKind.entries.forEach { kind ->
+                        FilterChip(
+                            selected = selectedKind == kind,
+                            onClick = { selectedKind = kind },
+                            label = { Text(kind.label) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = activityKindIcon(kind),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = detail,
+                    onValueChange = { detail = it },
+                    label = { Text("Detail / Quantity / Note (optional)") },
+                    placeholder = { Text("e.g., 2 hours, Dinner, 2 drinks") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isBlank()) {
+                        nameError = true
+                    } else {
+                        onSave(name, selectedKind, detail)
+                        onDismiss()
+                    }
+                },
+                modifier = Modifier.testTag("confirm_activity_button")
+            ) {
+                Text("Log Activity")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

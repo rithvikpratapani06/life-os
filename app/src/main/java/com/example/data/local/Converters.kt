@@ -1,6 +1,7 @@
 package com.example.data.local
 
 import androidx.room.TypeConverter
+import com.example.data.model.ActivityKind
 import com.example.data.model.ExpenseCategory
 import com.example.data.model.HabitStatus
 import com.example.data.model.LogStatus
@@ -30,4 +31,7 @@ class Converters {
 
     @TypeConverter fun fromExpenseCategory(value: ExpenseCategory): String = value.name
     @TypeConverter fun toExpenseCategory(value: String): ExpenseCategory = ExpenseCategory.valueOf(value)
+
+    @TypeConverter fun fromActivityKind(value: ActivityKind): String = value.name
+    @TypeConverter fun toActivityKind(value: String): ActivityKind = ActivityKind.valueOf(value)
 }

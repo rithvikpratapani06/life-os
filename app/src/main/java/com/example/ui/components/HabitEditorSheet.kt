@@ -61,6 +61,8 @@ import com.example.data.model.HabitStatus
 import com.example.data.model.ScheduleType
 import com.example.data.model.TrackingType
 import com.example.ui.theme.CategoryColorOptions
+import com.example.ui.theme.HabitIconCatalog
+import com.example.ui.theme.findHabitIconPreset
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -97,6 +99,19 @@ fun HabitEditorSheet(
     var secondReminderMinute by remember { mutableIntStateOf(existingHabit?.secondReminderMinute ?: 0) }
     var editingReminderSlot by remember { mutableStateOf<Int?>(null) }
     var nameError by remember { mutableStateOf(false) }
+    var selectedIconKey by remember {
+        mutableStateOf(existingHabit?.iconKey?.ifBlank { "tasks" } ?: "tasks")
+    }
+    var selectedColorHex by remember {
+        mutableStateOf(
+            existingHabit?.colorHex?.takeIf { it != 0L }
+                ?: findHabitIconPreset(selectedIconKey)?.colorHex
+                ?: HabitIconCatalog.first().colorHex
+        )
+    }
+    var selectedIconGroup by remember {
+        mutableStateOf(findHabitIconPreset(selectedIconKey)?.group ?: "All")
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -162,6 +177,144 @@ fun HabitEditorSheet(
                                 )
                             }
                         )
+                    }
+                }
+            }
+
+            // Icon & Coordinated Color Picker
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val activePreset = findHabitIconPreset(selectedIconKey) ?: HabitIconCatalog.first()
+                val activeColor = Color(selectedColorHex)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("Icon & Fitting Color", style = MaterialTheme.typography.titleSmall)
+                        InfoTipButton(
+                            title = "Icon & Fitting Color",
+                            explanation = "Pick any habit icon—its exact matching color is selected automatically. You can also fine-tune the color below."
+                        )
+                    }
+                    Surface(
+                        shape = CircleShape,
+                        color = activeColor.copy(alpha = 0.16f),
+                        border = BorderStroke(1.dp, activeColor.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = activePreset.icon,
+                                contentDescription = activePreset.label,
+                                tint = activeColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = activePreset.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = activeColor
+                            )
+                        }
+                    }
+                }
+
+                val groups = listOf("All", "Health & Care", "Fitness & Sports", "Learning & Mind", "Productivity")
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    groups.forEach { group ->
+                        FilterChip(
+                            selected = selectedIconGroup == group,
+                            onClick = { selectedIconGroup = group },
+                            label = { Text(group) }
+                        )
+                    }
+                }
+
+                val visibleIcons = if (selectedIconGroup == "All") HabitIconCatalog else {
+                    HabitIconCatalog.filter { it.group == selectedIconGroup }
+                }
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    visibleIcons.forEach { preset ->
+                        val isSelected = selectedIconKey == preset.key
+                        val presetColor = Color(preset.colorHex)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable {
+                                    selectedIconKey = preset.key
+                                    selectedColorHex = preset.colorHex
+                                }
+                                .padding(2.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isSelected) presetColor else presetColor.copy(alpha = 0.14f),
+                                border = BorderStroke(
+                                    width = if (isSelected) 2.dp else 1.dp,
+                                    color = if (isSelected) presetColor else presetColor.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = preset.icon,
+                                        contentDescription = preset.label,
+                                        tint = if (isSelected) Color.White else presetColor,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = preset.label.substringBefore(" /"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSelected) presetColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+
+                val colorSwatches = remember(activePreset.colorHex) {
+                    (listOf(activePreset.colorHex) + HabitIconCatalog.map { it.colorHex }).distinct()
+                }
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    colorSwatches.forEach { hex ->
+                        val chosen = selectedColorHex == hex
+                        Box(
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(Color(hex))
+                                .clickable { selectedColorHex = hex },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (chosen) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected color",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -485,6 +638,8 @@ fun HabitEditorSheet(
                         startDate = existingHabit?.startDate ?: logicalToday,
                         endDate = existingHabit?.endDate,
                         status = existingHabit?.status ?: HabitStatus.ACTIVE,
+                        iconKey = selectedIconKey,
+                        colorHex = selectedColorHex,
                         createdAt = existingHabit?.createdAt ?: System.currentTimeMillis(),
                         updatedAt = System.currentTimeMillis()
                     )

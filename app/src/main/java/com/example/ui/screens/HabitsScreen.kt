@@ -54,6 +54,7 @@ import com.example.data.local.entity.HabitEntity
 import com.example.data.model.HabitStatus
 import com.example.ui.LifeOsUiState
 import com.example.ui.components.formatCleanNumber
+import com.example.ui.theme.habitIconAndColor
 
 @Composable
 fun HabitsScreen(
@@ -182,7 +183,7 @@ fun HabitsScreen(
         } else {
             items(filteredHabits, key = { it.id }) { habit ->
                 val cat = catMap[habit.categoryId]
-                val catColor = cat?.let { Color(it.colorHex) } ?: MaterialTheme.colorScheme.primary
+                val (habitIcon, catColor) = habitIconAndColor(habit, cat)
                 var menuExpanded by remember { mutableStateOf(false) }
 
                 Surface(
@@ -197,13 +198,21 @@ fun HabitsScreen(
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .width(4.dp)
-                                .height(42.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(catColor)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = catColor.copy(alpha = 0.14f),
+                            border = BorderStroke(1.dp, catColor.copy(alpha = 0.35f)),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = habitIcon,
+                                    contentDescription = habit.name,
+                                    tint = catColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(habit.name, style = MaterialTheme.typography.titleMedium)

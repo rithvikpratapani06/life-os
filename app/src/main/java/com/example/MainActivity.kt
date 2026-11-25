@@ -55,6 +55,7 @@ import com.example.data.repository.DayHabitSummary
 import com.example.ui.LifeOsViewModel
 import com.example.ui.components.AppGuideSheet
 import com.example.ui.components.HabitEditorSheet
+import com.example.ui.components.LogActivityDialog
 import com.example.ui.components.ManageCategoriesDialog
 import com.example.ui.components.PinLockScreen
 import com.example.ui.components.QuickLogDialog
@@ -120,6 +121,7 @@ fun LifeOsApp(viewModel: LifeOsViewModel) {
     var showCategoryManager by remember { mutableStateOf(false) }
     var showAppGuide by remember { mutableStateOf(false) }
     var quickLogTarget by remember { mutableStateOf<Pair<DayHabitSummary, String>?>(null) }
+    var activityDialogDate by remember { mutableStateOf<String?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -274,6 +276,11 @@ fun LifeOsApp(viewModel: LifeOsViewModel) {
                             onOpenGuide = { showAppGuide = true },
                             onOpenSettings = { showSettings = true },
                             onLogStress = { level -> viewModel.logStress(level, "", "") },
+                            onQuickLogActivity = { name, kind ->
+                                viewModel.logActivity(uiState.logicalToday, name, kind, "")
+                            },
+                            onOpenLogActivity = { activityDialogDate = uiState.logicalToday },
+                            onDeleteActivity = { id -> viewModel.deleteActivity(id) },
                             modifier = contentModifier
                         )
                         LifeOsTab.HABITS -> HabitsScreen(
@@ -300,6 +307,9 @@ fun LifeOsApp(viewModel: LifeOsViewModel) {
                             onAddExpense = { date, amount, cat, title, method, note ->
                                 viewModel.addExpense(date, amount, cat, title, method, note)
                             },
+                            onUpdateExpense = { expense ->
+                                viewModel.updateExpense(expense)
+                            },
                             onDeleteExpense = { id -> viewModel.deleteExpense(id) },
                             modifier = contentModifier
                         )
@@ -325,10 +335,19 @@ fun LifeOsApp(viewModel: LifeOsViewModel) {
                             onOpenQuickLog = { summary ->
                                 quickLogTarget = summary to uiState.selectedPlannerDate
                             },
+                            onOpenLogActivity = { activityDialogDate = uiState.selectedPlannerDate },
+                            onDeleteActivity = { id -> viewModel.deleteActivity(id) },
                             modifier = contentModifier
                         )
                         LifeOsTab.INSIGHTS -> InsightsScreen(
                             uiState = uiState,
+                            onEditHabit = { habit ->
+                                editingHabit = habit
+                                showHabitEditor = true
+                            },
+                            onOpenQuickLog = { summary, date ->
+                                quickLogTarget = summary to date
+                            },
                             modifier = contentModifier
                         )
                     }
@@ -367,7 +386,9 @@ fun LifeOsApp(viewModel: LifeOsViewModel) {
 
     quickLogTarget?.let { (targetSummary, dateStr) ->
         val liveSummary = (if (dateStr == uiState.logicalToday) uiState.todaySummaries else uiState.plannerSummaries)
-            .firstOrNull { it.habit.id == targetSummary.habit.id } ?: targetSummary
+            .firstOrNull { it.habit.id == targetSummary.habit.id }
+            ?: uiState.perHabitAnalytics.firstOrNull { it.habit.id == targetSummary.habit.id }?.daySummariesByDate?.get(dateStr)
+            ?: targetSummary
         QuickLogDialog(
             summary = liveSummary,
             dateLabel = DateHelper.formatReadable(dateStr),
@@ -393,6 +414,17 @@ fun LifeOsApp(viewModel: LifeOsViewModel) {
                     isExplicitNo = !isDone && !isSkip,
                     slot = slot
                 )
+            }
+        )
+    }
+
+    activityDialogDate?.let { targetDate ->
+        LogActivityDialog(
+            dateLabel = DateHelper.formatReadable(targetDate),
+            presets = uiState.activityAnalytics.quickPresets,
+            onDismiss = { activityDialogDate = null },
+            onSave = { name, kind, detail ->
+                viewModel.logActivity(targetDate, name, kind, detail)
             }
         )
     }

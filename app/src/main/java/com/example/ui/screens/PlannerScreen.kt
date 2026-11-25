@@ -18,12 +18,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +45,7 @@ import com.example.data.model.TrackingType
 import com.example.data.repository.DayHabitSummary
 import com.example.ui.LifeOsUiState
 import com.example.ui.components.DayHabitCard
+import com.example.ui.components.activityKindIcon
 import com.example.util.DateHelper
 import java.util.Calendar
 
@@ -52,6 +57,8 @@ fun PlannerScreen(
     onQuickNoBoolean: (DayHabitSummary) -> Unit,
     onLogTwiceDailySlot: (DayHabitSummary, String, Boolean, Boolean) -> Unit,
     onOpenQuickLog: (DayHabitSummary) -> Unit,
+    onOpenLogActivity: () -> Unit,
+    onDeleteActivity: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val todayCal = remember(uiState.logicalToday) { DateHelper.parse(uiState.logicalToday) }
@@ -229,6 +236,88 @@ fun PlannerScreen(
                     },
                     onOpenDetails = { onOpenQuickLog(summary) }
                 )
+            }
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Occasional Activities", style = MaterialTheme.typography.titleMedium)
+                OutlinedButton(
+                    onClick = onOpenLogActivity,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text("Log Event")
+                }
+            }
+        }
+
+        val dayActivities = uiState.activityAnalytics.plannerActivities
+        if (dayActivities.isEmpty()) {
+            item {
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "No occasional activities logged on this date.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
+        } else {
+            items(dayActivities, key = { "act_${it.id}" }) { act ->
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = activityKindIcon(act.kind),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Column {
+                                Text(act.name, style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    text = if (act.detail.isNotBlank()) "${act.kind.label} • ${act.detail}" else act.kind.label,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        IconButton(onClick = { onDeleteActivity(act.id) }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Delete activity",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }

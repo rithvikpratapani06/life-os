@@ -77,3 +77,11 @@ enum class AccentPalette(
     CYAN("Cyan", 0xFF0891B2L, 0xFF22D3EEL, 0xFFCFFAFEL, 0xFF164E63L),
     VIOLET("Violet", 0xFF7C3AEDL, 0xFFA78BFAL, 0xFFEDE9FEL, 0xFF4C1D95L)
 }
+
+enum class ActivityKind(val label: String) {
+    SPORTS("Sports & Play"),
+    FOOD("Food & Dining"),
+    DRINK("Drinks / Alcohol"),
+    SOCIAL("Social & Outing"),
+    OTHER("Other Event")
+}

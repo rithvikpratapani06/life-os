@@ -41,6 +41,8 @@ data class HabitEntity(
     val startDate: String, // yyyy-MM-dd
     val endDate: String? = null,
     val status: HabitStatus = HabitStatus.ACTIVE,
+    val iconKey: String = "",
+    val colorHex: Long = 0L,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

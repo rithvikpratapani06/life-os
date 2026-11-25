@@ -31,6 +31,7 @@ class LifeOsRepository(private val dao: LifeOsDao) {
     val logs: Flow<List<HabitLogEntity>> = dao.observeAllLogs()
     val stressLogs: Flow<List<com.example.data.local.entity.StressLogEntity>> = dao.observeAllStressLogs()
     val expenses: Flow<List<com.example.data.local.entity.ExpenseEntity>> = dao.observeAllExpenses()
+    val activityLogs: Flow<List<com.example.data.local.entity.ActivityLogEntity>> = dao.observeAllActivityLogs()
 
     suspend fun addCategory(name: String, colorHex: Long, iconKey: String): Long {
         return dao.insertCategory(
@@ -199,6 +200,7 @@ class LifeOsRepository(private val dao: LifeOsDao) {
         dao.deleteAllHabits()
         dao.deleteAllStressLogs()
         dao.deleteAllExpenses()
+        dao.deleteAllActivityLogs()
     }
 
     suspend fun logStress(
@@ -238,8 +240,40 @@ class LifeOsRepository(private val dao: LifeOsDao) {
         )
     }
 
+    suspend fun updateExpense(expense: com.example.data.local.entity.ExpenseEntity) {
+        if (expense.amount <= 0.0) return
+        dao.updateExpense(
+            expense.copy(
+                title = expense.title.trim().ifBlank { expense.category.label }.take(80),
+                note = expense.note.trim().take(200)
+            )
+        )
+    }
+
     suspend fun deleteExpense(expenseId: Long) {
         dao.deleteExpenseById(expenseId)
+    }
+
+    suspend fun logActivity(
+        logDate: String,
+        name: String,
+        kind: com.example.data.model.ActivityKind,
+        detail: String
+    ) {
+        val cleanName = name.trim().take(60)
+        if (cleanName.isBlank()) return
+        dao.insertActivityLog(
+            com.example.data.local.entity.ActivityLogEntity(
+                logDate = logDate,
+                name = cleanName,
+                kind = kind,
+                detail = detail.trim().take(120)
+            )
+        )
+    }
+
+    suspend fun deleteActivity(id: Long) {
+        dao.deleteActivityLogById(id)
     }
 
     suspend fun exportAllDataJson(): String {
@@ -275,6 +309,8 @@ class LifeOsRepository(private val dao: LifeOsDao) {
                 put("status", h.status.name)
                 put("startDate", h.startDate)
                 put("endDate", h.endDate ?: JSONObject.NULL)
+                put("iconKey", h.iconKey)
+                put("colorHex", h.colorHex)
             })
         }
         root.put("habits", habitArray)
@@ -294,6 +330,19 @@ class LifeOsRepository(private val dao: LifeOsDao) {
             })
         }
         root.put("habitLogs", logArray)
+
+        val actArray = JSONArray()
+        dao.getAllActivityLogsOnce().forEach { a ->
+            actArray.put(JSONObject().apply {
+                put("id", a.id)
+                put("logDate", a.logDate)
+                put("name", a.name)
+                put("kind", a.kind.name)
+                put("detail", a.detail)
+                put("loggedAt", a.loggedAt)
+            })
+        }
+        root.put("activityLogs", actArray)
 
         return root.toString(2)
     }

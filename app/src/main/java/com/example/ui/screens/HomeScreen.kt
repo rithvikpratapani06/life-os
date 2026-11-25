@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Settings
@@ -32,6 +34,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,13 +46,17 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import java.util.Calendar
+import com.example.data.model.ActivityKind
 import com.example.data.model.LogStatus
+import com.example.data.model.ScheduleType
 import com.example.data.model.StressLevel
 import com.example.data.model.TrackingType
 import com.example.data.repository.DayHabitSummary
 import com.example.ui.LifeOsUiState
 import com.example.ui.components.DailyProgressRing
 import com.example.ui.components.DayHabitCard
+import com.example.ui.components.InfoTipButton
+import com.example.ui.components.activityKindIcon
 import com.example.ui.theme.MonoMetricMedium
 import com.example.util.DateHelper
 import java.util.Locale
@@ -66,11 +73,15 @@ fun HomeScreen(
     onOpenGuide: () -> Unit,
     onOpenSettings: () -> Unit,
     onLogStress: (StressLevel) -> Unit,
+    onQuickLogActivity: (String, ActivityKind) -> Unit,
+    onOpenLogActivity: () -> Unit,
+    onDeleteActivity: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val todayItems = uiState.todaySummaries
-    val completedCount = todayItems.count { it.status == LogStatus.COMPLETED }
-    val totalCount = todayItems.size
+    val routineItems = todayItems.filter { it.habit.scheduleType != ScheduleType.OCCASIONAL }
+    val completedCount = routineItems.count { it.status == LogStatus.COMPLETED }
+    val totalCount = routineItems.size
     val progress = if (totalCount == 0) 0f else completedCount.toFloat() / totalCount.toFloat()
     val bestStreak = todayItems.maxOfOrNull { it.currentStreak } ?: 0
     val haptic = LocalHapticFeedback.current
@@ -390,6 +401,130 @@ fun HomeScreen(
                     },
                     onOpenDetails = { onOpenQuickLog(summary) }
                 )
+            }
+        }
+
+        // Occasional Activities (Non-Habit Events: Sports, Biryani, Alcohol, etc.)
+        item {
+            val todayActivities = uiState.activityAnalytics.todayActivities
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                Icons.Default.EventNote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text("Occasional Activities", style = MaterialTheme.typography.titleSmall)
+                            InfoTipButton(
+                                title = "Occasional Activities",
+                                explanation = "Use this for things you do sometimes—like Cricket, Badminton, Biryani, or Alcohol. They aren't treated as daily habits, never count as missed, and won't affect your daily habit score or streaks."
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = onOpenLogActivity,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.testTag("home_log_activity_button")
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Log")
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        uiState.activityAnalytics.quickPresets.forEach { (presetName, presetKind) ->
+                            FilterChip(
+                                selected = todayActivities.any { it.name.equals(presetName, ignoreCase = true) },
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onQuickLogActivity(presetName, presetKind)
+                                },
+                                label = { Text("+ $presetName") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = activityKindIcon(presetKind),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                            )
+                        }
+                    }
+
+                    if (todayActivities.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            todayActivities.forEach { act ->
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(
+                                                imageVector = activityKindIcon(act.kind),
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.tertiary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Column {
+                                                Text(act.name, style = MaterialTheme.typography.bodyMedium)
+                                                Text(
+                                                    text = if (act.detail.isNotBlank()) "${act.kind.label} • ${act.detail}" else act.kind.label,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        IconButton(
+                                            onClick = { onDeleteActivity(act.id) },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Remove activity",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

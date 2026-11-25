@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
@@ -72,42 +73,47 @@ fun AppGuideSheet(onDismiss: () -> Unit) {
             )
             GuideSectionCard(
                 icon = Icons.Default.Checklist,
-                title = "2. Habits, Schedules & Categories",
-                description = "Track 5 types (Check-off, Numeric, Duration, Quantity, Rating 1–5) across 6 schedules: Every Day, Twice a Day (independent Morning AM & Night PM tracking), Specific Days, X Days/Week, Every N Days, and Few Days / Month (for sports or occasional activities—unlogged days never count as missed)."
+                title = "2. Habits, Custom Icons & Schedules",
+                description = "Pick from 30+ icons across Health, Fitness, Learning, and Productivity—each automatically selects an exact matching color. Track 5 types across 6 schedules including Twice a Day (independent Morning AM & Night PM tracking)."
+            )
+            GuideSectionCard(
+                icon = Icons.Default.EventNote,
+                title = "3. Occasional Activities (Non-Habit Events)",
+                description = "Things you do only sometimes—like playing Cricket, Badminton, eating Biryani, or having Alcohol—belong in Occasional Activities on Home rather than daily Habits. Log them in 1 tap without streaks, 'Missed' penalties, or lowering your daily habit score, and view weekly/monthly counts in Insights → Activities."
             )
             GuideSectionCard(
                 icon = Icons.Default.Psychology,
-                title = "3. Daily Stress Tracking & Alerts",
+                title = "4. Daily Stress Tracking & Alerts",
                 description = "Log your daily stress level (Low, Moderate, High, Very High) right from Home. Enable the Daily Stress Check-In reminder in Settings and view weekly/monthly stress trends in Insights."
             )
             GuideSectionCard(
                 icon = Icons.Default.AccountBalanceWallet,
-                title = "4. Finance Manager & Expense Tracker",
-                description = "Dedicated Finance tab to record daily expenses with what you spent on and payment method (Cash, UPI, UPI Credit Card, UPI Debit Card). View today's total, monthly spend, daily average, 7-day chart, and category/payment breakdowns."
+                title = "5. Finance Manager & Expense Tracker",
+                description = "Record expenses for today or any missed previous day, and tap any saved expense or Edit icon anytime to update its amount, date, category, payment method, or notes. Switch between Day Wise, Week Wise, and Month Wise views—and tap any day, week, month, category, or payment method to inspect every expense and total spent all day."
             )
             GuideSectionCard(
                 icon = Icons.Default.NotificationsActive,
-                title = "5. Custom & Dual Reminders",
+                title = "6. Custom & Dual Reminders",
                 description = "Set any custom reminder time per habit. For morning/night routines, enable 'Remind twice a day' to receive two independent daily notifications."
             )
             GuideSectionCard(
                 icon = Icons.Default.CalendarMonth,
-                title = "6. Planner (Monthly Calendar)",
-                description = "Browse your monthly consistency calendar. Tap any date to inspect that day's habits, log missed entries, or mark a habit as Intentionally Skipped."
+                title = "7. Planner (Monthly Calendar)",
+                description = "Browse your monthly consistency calendar. Tap any date to inspect that day's habits, log missed entries, mark Intentionally Skipped, or log occasional activities for that day."
             )
             GuideSectionCard(
                 icon = Icons.Default.BarChart,
-                title = "7. Insights & 12-Week Heatmaps",
-                description = "Switch between Overall, Per Habit, and Stress scopes with Weekly (7D) and Monthly (30D) views. Every habit has a 12-week calendar heatmap with month/date labels—tap any cell to inspect that day."
+                title = "8. Insights, Per-Habit Calendar & Heatmaps",
+                description = "Switch between Overall, Per Habit, Activities, and Stress. Select any individual habit in Per Habit to view its interactive Sun–Sat Date Calendar, Daily Log snapshot, All-Time Statistics (Streaks, Completions, Surplus, Debt, Net Balance), 7D/30D/All Performance, Insight Cluster, and 12-Week Heatmap."
             )
             GuideSectionCard(
                 icon = Icons.Default.Palette,
-                title = "8. Personalization & Settings",
+                title = "9. Personalization & Settings",
                 description = "Customize your greeting name, choose from 6 accent color palettes, switch Light/Dark/System themes, enable Compact Layout, and set your Logical Day Boundary (e.g., 03:00 AM so late-night logs count for yesterday)."
             )
             GuideSectionCard(
                 icon = Icons.Default.Security,
-                title = "9. Security & Offline Privacy",
+                title = "10. Security & Offline Privacy",
                 description = "Habtrac runs in an offline sandbox with zero internet or storage permissions. Enable a 4-digit salted SHA-256 App PIN lock and Screen Privacy (blocks screenshots and recent-apps preview) in Settings, or export your data as JSON anytime."
             )
             GuideSectionCard(

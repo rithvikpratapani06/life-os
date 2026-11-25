@@ -96,9 +96,28 @@ interface LifeOsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: com.example.data.local.entity.ExpenseEntity): Long
 
+    @Update
+    suspend fun updateExpense(expense: com.example.data.local.entity.ExpenseEntity)
+
     @Query("DELETE FROM expenses WHERE id = :expenseId")
     suspend fun deleteExpenseById(expenseId: Long)
 
     @Query("DELETE FROM expenses")
     suspend fun deleteAllExpenses()
+
+    // Occasional Activities (Non-Habit Events)
+    @Query("SELECT * FROM activity_logs ORDER BY logDate DESC, loggedAt DESC")
+    fun observeAllActivityLogs(): Flow<List<com.example.data.local.entity.ActivityLogEntity>>
+
+    @Query("SELECT * FROM activity_logs ORDER BY logDate DESC, loggedAt DESC")
+    suspend fun getAllActivityLogsOnce(): List<com.example.data.local.entity.ActivityLogEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertActivityLog(log: com.example.data.local.entity.ActivityLogEntity): Long
+
+    @Query("DELETE FROM activity_logs WHERE id = :id")
+    suspend fun deleteActivityLogById(id: Long)
+
+    @Query("DELETE FROM activity_logs")
+    suspend fun deleteAllActivityLogs()
 }
